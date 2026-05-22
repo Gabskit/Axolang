@@ -106,7 +106,6 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
 
   char buffer[MAX_LINE_LEN];
   strcpy(buffer, start);
-
   // =============================================================
   // ESTADO: DENTRO DE UN PAQUETE (pkg)
   // =============================================================
@@ -114,16 +113,24 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
 
     // CASO A: Inicio de un método del paquete
     if (!in_func_inside_pkg && (strncmp(buffer, "func ", 5) == 0 || strncmp(buffer, "Func ", 5) == 0)) {
+      // --- Reemplaza este bloque en transpiler.c ---
       in_func_inside_pkg = true;
       char func_name[50] = {
         0
       };
-      sscanf(buffer, "%*s %[^= ]", func_name);
+      sscanf(buffer, "%*s %[^= \t]", func_name); // Modificado para ignorar tabuladores
 
-      // Registrar dinámicamente el método en la tabla para su posterior enlace automático
-      if (total_metodos < MAX_METHODS) {
+      // Asegurar que no queden espacios en blanco al final de func_name
+      int len_fn = strlen(func_name);
+      while(len_fn > 0 && isspace((unsigned char)func_name[len_fn - 1])) {
+        func_name[len_fn - 1] = '\0';
+        len_fn--;
+      }
+
+      if (total_metodos < MAX_METHODS && strlen(func_name) > 0) {
         strcpy(lista_metodos[total_metodos++], func_name);
       }
+
 
       char argumentos[256] = "";
       char *open_p = strchr(buffer, '(');
@@ -133,15 +140,30 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
         strncpy(argumentos, open_p + 1, arg_len);
         argumentos[arg_len] = '\0';
       }
-
+      bool retorna_arreglo = false;
       char ret_type[20] = "void";
       if (strstr(buffer, ":int") || strstr(buffer, ":Int")) strcpy(ret_type, "int");
-      else if (strstr(buffer, ":[]int") || strstr(buffer, ":[]Int")) strcpy(ret_type, "int*");
+      else if (strstr(line, ":[]int") || strstr(line, ":[]Int")) {
+        retorna_arreglo = true;
+        strcpy(ret_type, "AxoArray_int"); // Forzamos a C a usar la estructura envuelta
+
+        // Limpiamos los tokens de Axolang de la línea temporal
+        replace_string(line, ":[]int", "", line);
+        replace_string(line, ":[]Int", "", line);
+      }
       else if (strstr(buffer, ":dec") || strstr(buffer, ":Dec")) strcpy(ret_type, "double");
-      else if (strstr(buffer, ":[]dec") || strstr(buffer, ":[]Dec")) strcpy(ret_type, "double*");
+      else if (strstr(line, ":[]dec") || strstr(line, ":[]Dec")) {
+      retorna_arreglo = true;
+      strcpy(ret_type, "AxoArray_Dec"); // Forzamos a C a usar la estructura envuelta
+      
+      // Limpiamos los tokens de Axolang de la línea temporal
+      replace_string(line, ":[]int", "", line);
+      replace_string(line, ":[]Dec", "", line);
+  }
       else if (strstr(buffer, ":char") || strstr(buffer, ":Char")) strcpy(ret_type, "char*");
       else if (strstr(buffer, ":[]char") || strstr(buffer, ":[]Char")) strcpy(ret_type, "char*");
       else if (strstr(buffer, ":bool") || strstr(buffer, ":Bool")) strcpy(ret_type, "bool"); // bool nativo C23
+      else if (strstr(buffer, ":any") || strstr(buffer, ":Any")) strcpy(ret_type, "void*");
 
       char cabecera[512];
       sprintf(cabecera, "%s _%s_%s(%s) {\n", ret_type, current_pkg, func_name, argumentos);
@@ -180,6 +202,10 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
       strcat(funciones_paquetes, "\n");
 
       strcpy(out_line, "");
+      // === REGISTRO AUTOMÁTICO DE TIPOS DE ARREGLO PARA AXOLANG ===
+      strcat(buffer_structs, "typedef struct {\n    int* data;\n    int length;\n} AxoArray_int;\n");
+      // === REGISTRO AUTOMÁTICO DE TIPOS DE ARREGLO PARA AXOLANG ===
+      strcat(buffer_structs, "typedef struct {\n    double* data;\n    int length;\n} AxoArray_Dec;\n");
       return;
     }
 
@@ -226,7 +252,22 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
   // =============================================================
   // ESTADO: ÁMBITO GLOBAL (FUERA DE PAQUETES)
   // =============================================================
+  // INTERCEPTOR DE RETURN PARA ARREGLOS
+  if (strncmp(buffer, "return ", 7) == 0) {
+      // Aquí puedes usar una variable de estado global como 'in_func_inside_array_return' 
+      // que se vuelva 'true' cuando entraste a la función y 'false' cuando veas la llave de cierre '}'
+      if (in_func_inside_array_return) { 
+          char var_name[50] = {0};
+          sscanf(buffer, "return %[^;\n ]", var_name); // Extrae el nombre de la variable (ej: "primos")
 
+          // Transformamos el return en la creación y envío del struct envuelto
+          // C23 nos permite medir el tamaño estático usando sizeof() antes de que muera en el return
+          sprintf(output, 
+              "AxoArray_int _ret = { .data = %s, .length = sizeof(%s)/sizeof(%s[0]) };\n    return _ret;", 
+              var_name, var_name, var_name);
+          return;
+      }
+  }
   if (strncmp(buffer, "pkg ", 4) == 0) {
     in_pkg = true;
     total_metodos = 0; // Resetear contador de métodos para el nuevo paquete
@@ -314,6 +355,7 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
   // Funciones Globales estándar
   if (strncmp(buffer, "func ", 5) == 0) {
     char func_name[50];
+
     if (sscanf(buffer, "%*s %[^= ]", func_name) == 1) {
       char argumentos[256] = "";
       char *open_p = strchr(buffer, '(');
@@ -322,23 +364,32 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
         size_t arg_len = close_p - (open_p + 1);
         strncpy(argumentos, open_p + 1, arg_len);
         argumentos[arg_len] = '\0';
-        replace_string(argumentos, "Int ", "int ", argumentos);
+        /*replace_string(argumentos, "Int ", "int ", argumentos);
         replace_string(argumentos, "Dec ", "double ", argumentos);
         replace_string(argumentos, "Char ", "char ", argumentos);
-        replace_string(argumentos, "Bool ", "bool ", argumentos);
+        replace_string(argumentos, "Bool ", "bool ", argumentos);*/
       }
 
       if (strcmp(func_name, "main") == 0) {
         sprintf(buffer, "int main() {");
       } else {
-        char ret_type[20] = "void";
+        // Si detecta que el usuario quiere retornar un arreglo de enteros
+        if (strstr(line, ":[]int") || strstr(line, ":[]Int")) {
+          retorna_arreglo = true;
+          strcpy(ret_type, "AxoArray_int"); // Forzamos a C a usar la estructura envuelta
+
+          // Limpiamos los tokens de Axolang de la línea temporal
+          replace_string(line, ":[]int", "", line);
+          replace_string(line, ":[]Int", "", line);
+        }
         if (strstr(buffer, ":int") || strstr(buffer, ":Int")) strcpy(ret_type, "int");
-      else if (strstr(buffer, ":[]int") || strstr(buffer, ":[]Int")) strcpy(ret_type, "int*");
-      else if (strstr(buffer, ":dec") || strstr(buffer, ":Dec")) strcpy(ret_type, "double");
-      else if (strstr(buffer, ":[]dec") || strstr(buffer, ":[]Dec")) strcpy(ret_type, "double*");
-      else if (strstr(buffer, ":char") || strstr(buffer, ":Char")) strcpy(ret_type, "char*");
-      else if (strstr(buffer, ":[]char") || strstr(buffer, ":[]Char")) strcpy(ret_type, "char*");
-      else if (strstr(buffer, ":bool") || strstr(buffer, ":Bool")) strcpy(ret_type, "bool"); // bool nativo C23
+        else if (strstr(buffer, ":[]int") || strstr(buffer, "[]Int")) strcpy(ret_type, "AxoArray_int");
+        else if (strstr(buffer, ":dec") || strstr(buffer, ":Dec")) strcpy(ret_type, "double");
+        else if (strstr(buffer, ":[]dec") || strstr(buffer, ":[]Dec")) strcpy(ret_type, "AxoArray_dec");
+        else if (strstr(buffer, ":char") || strstr(buffer, ":Char")) strcpy(ret_type, "char*");
+        else if (strstr(buffer, ":[]char") || strstr(buffer, ":[]Char")) strcpy(ret_type, "char*");
+        else if (strstr(buffer, ":bool") || strstr(buffer, ":Bool")) strcpy(ret_type, "bool"); // bool nativo C23
+        else if (strstr(buffer, ":any") || strstr(buffer, ":Any")) strcpy(ret_type, "void*");
 
         sprintf(buffer, "%s %s(%s) {", ret_type, func_name, argumentos);
       }
@@ -366,7 +417,10 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
         sprintf(buffer_instancia, "%s %s;", tipo_posible, var_posible);
 
         // Mapeamos dinámicamente CADA método registrado para este paquete
+        // --- Reemplaza el ciclo for de la instanciación en transpiler.c ---
         for (int m = 0; m < total_metodos; m++) {
+          if (strlen(lista_metodos[m]) == 0) continue; // Saltarse registros corruptos
+
           char linea_enlace[256];
           sprintf(linea_enlace, "\n    %s.%s = _%s_%s;",
             var_posible, lista_metodos[m], tipo_posible, lista_metodos[m]);
@@ -480,7 +534,6 @@ int main(int argc, char *argv[]) {
   sprintf(compile_command, "gcc -std=c23 %s -o %s", temp_c_file, output_executable);
   printf("[axoc] Transpilando %s...\n", input_filename);
   printf("[axoc] Compilando en modo C23 nativo puro mediante GCC...\n");
-
   int result = system(compile_command);
   if (result == 0) {
     printf("[axoc] ¡Éxito! Generado el ejecutable nativo en C23: '%s'\n", output_executable);
@@ -488,6 +541,6 @@ int main(int argc, char *argv[]) {
     printf("[axoc] Error: Falló la compilación nativa en GCC. Revisa la sintaxis.\n");
     return 1;
   }
-
+  //remove(temp_c_file);
   return 0;
 }

@@ -1,4 +1,12 @@
 /* Código C23 generado automáticamente por Axolang (axoc) */
+typedef struct {
+    int* data;
+    size_t length;
+} AxoArray_int;
+typedef struct {
+    double* data;
+    size_t length;
+} AxoArray_dec;
 #include <stdio.h>
 #include <stdlib.h>
 #include <complex.h>
@@ -8,7 +16,7 @@ typedef struct {
     char letra;
     double gd;
     char* (*saludar)();
-    int (*suma)(int a, int b);
+    int* (*suma)(int a, int b);
 } algo;
 
 
@@ -17,9 +25,10 @@ char* _algo_saludar() {
     return "Hola desde variable";
 }
 
-int _algo_suma(int a, int b) {
-    int sum;
-    sum = a + b;
+int* _algo_suma(int a, int b) {
+    int sum[2];
+    sum[0] = a + b;
+    sum[1] = a + a + b;
     return sum;
 }
 
@@ -51,6 +60,6 @@ int _algo_suma(int a, int b) {
     hola2();
     printf("%.1f %.1fi\n", creal(miComplejo), cimag(miComplejo));
     printf("%p\n", miCopia);
-    printf("%d\n", p1.suma(2,4));
+    printf("%ls\n", p1.suma(2,4));
     return 0;
     }
