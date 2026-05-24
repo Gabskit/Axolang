@@ -1,4 +1,10 @@
 /* Código C23 generado automáticamente por Axolang (axoc) */
+#include <stdio.h>
+#include <stdlib.h>
+#include <stddef.h>
+#include <complex.h>
+
+/* Definiciones Base de Arreglos de Axolang */
 typedef struct {
     int* data;
     size_t length;
@@ -7,16 +13,14 @@ typedef struct {
     double* data;
     size_t length;
 } AxoArray_dec;
-#include <stdio.h>
-#include <stdlib.h>
-#include <complex.h>
+
 
 /* Definición de Estructuras Axolang */
 typedef struct {
     char letra;
     double gd;
     char* (*saludar)();
-    int* (*suma)(int a, int b);
+    AxoArray_int (*suma)(int a, int b);
 } algo;
 
 
@@ -25,11 +29,11 @@ char* _algo_saludar() {
     return "Hola desde variable";
 }
 
-int* _algo_suma(int a, int b) {
-    int sum[2];
+AxoArray_int _algo_suma(int a, int b) {
+    // Al transpilearse, interceptamos esto para usar malloc dinámico;
+    int sum[] = {0,0};
     sum[0] = a + b;
     sum[1] = a + a + b;
-    return sum;
 }
 
 
@@ -41,6 +45,8 @@ int* _algo_suma(int a, int b) {
     double pi = 3.1416;
     bool activo = true;
     auto miCopia = &edad;
+    AxoArray_int _ret = { .data = sum, .length = sizeof(sum)/sizeof(sum[0]) };
+    return _ret;
     void* variableComodin = "adios";
     void hola2() {
     printf("Hola desde funcion globql\n");
@@ -50,7 +56,7 @@ int* _algo_suma(int a, int b) {
     p1.saludar = _algo_saludar;
     p1.suma = _algo_suma;
     p1.letra = 'a';
-    printf("%s\n",saludo);
+    printf("%s\n", saludo);
     printf("%s\n", p1.saludar());
     printf("%c\n", p1.letra);
     printf("%s\n", (char*)variableComodin);
@@ -60,6 +66,10 @@ int* _algo_suma(int a, int b) {
     hola2();
     printf("%.1f %.1fi\n", creal(miComplejo), cimag(miComplejo));
     printf("%p\n", miCopia);
-    printf("%ls\n", p1.suma(2,4));
+    // CAPTURA INTELIGENTE DEL ARREGLO RETORNADO;
+    auto resultado = p1.suma(2, 4);
+    printf("Resultado 1: %d\n", resultado.data[0]);
+    printf("Resultado 2: %d\n", resultado.data[1]);
+    printf("Elementos devueltos: %zu\n", resultado.length);
     return 0;
     }

@@ -7,41 +7,49 @@ Int edad = 25
 Dec pi = 3.1416
 Bool activo = true
 Punt miCopia = *edad
+
 pkg algo = {
   char letra
   Dec gd
-  func saludar = () :[]char{
-  return «Hola desde variable»
-}
-func suma = (int a, int b):[]int {
-int sum[2]
-sum[0] = a + b 
-sum[1] = a + a + b
- return sum
-}
+  func saludar = ():[]char{
+    return «Hola desde variable»
+  }
+  
+  func suma = (int a, int b):int {
+    // Al transpilearse, interceptamos esto para usar malloc dinámico
+    int sum[] = «0,0»
+    sum[0] = a + b 
+    sum[1] = a + a + b
+    return 0
+  }
 }
 any variableComodin = «adios»
 
 func hola2 = (){
-printf(«Hola desde funcion globql\n»)
+  printf(«Hola desde funcion globql\n»)
 }
 
 func main = (){
- algo p1
- p1.letra = 'a'
- printf(«%s\n»,saludo)
- printf(«%s\n», p1.saludar())
- printf(«%c\n», p1.letra)
- printf(«%s\n», (char*)variableComodin)
- for (int i = 0; i < 5; i++){
- printf(«%d\n», num[i])
- }
- hola2()
- printf(«%.1f %.1fi\n», creal(miComplejo), cimag(miComplejo))
- printf(«%p\n», miCopia)
- printf(«%ls\n», p1.suma(2,4))
+  algo p1
+  p1.letra = 'a'
+  printf(«%s\n», saludo)
+  printf(«%s\n», p1.saludar())
+  printf(«%c\n», p1.letra)
+  printf(«%s\n», (char*)variableComodin)
+  
+  for (int i = 0; i < 5; i++){
+    printf(«%d\n», num[i])
+  }
+  
+  hola2()
+  printf(«%.1f %.1fi\n», creal(miComplejo), cimag(miComplejo))
+  printf(«%p\n», miCopia)
+  
+  // CAPTURA INTELIGENTE DEL ARREGLO RETORNADO
+  auto resultado = p1.suma(2, 4)
+  printf(«Resultado 1: %d\n», resultado.data[0])
+  printf(«Resultado 2: %d\n», resultado.data[1])
+  printf(«Elementos devueltos: %zu\n», resultado.length)
+  
   Stop(system)
-
 }
-main()
-
