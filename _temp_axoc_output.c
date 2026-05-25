@@ -57,8 +57,7 @@ AxoArray_dec _algo_suma(double a, double b) {
     double sum[] = {0,0};
     sum[0] = a + b;
     sum[1] = a * b;
-    AxoArray_dec _ret = { .data = sum, .length = sizeof(sum)/sizeof(sum[0]) };
-    return _ret;
+    return sum;
 }
 
 

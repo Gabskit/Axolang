@@ -27,7 +27,7 @@ int nivel_llaves = 0;
 bool actual_func_retorna_int_array = false;
 bool actual_func_retorna_dec_array = false;
 // Registro dinámico de variables de tipo 'any'
-char lista_any_vars[512][64] = {};
+char axo_any_vars[512][64] = {};
 int total_any_vars = 0;
 // Estructura para registrar métodos dinámicamente
 char lista_metodos[MAX_METHODS][1024];
@@ -146,7 +146,7 @@ void procesar_bloque_any(char *buffer) {
 
       // Registrar variable en nuestra tabla de símbolos interna
       if (total_any_vars < 512) {
-        strncpy(lista_any_vars[total_any_vars++], var_name, 63);
+        strncpy(axo_any_vars[total_any_vars++], var_name, 63);
       }
 
       strcpy(val_part, equal_ptr + 1);
@@ -188,7 +188,7 @@ void procesar_bloque_any(char *buffer) {
       var_name[i] = '\0';
 
       if (total_any_vars < 512) {
-        strncpy(lista_any_vars[total_any_vars++], var_name, 63);
+        strncpy(axo_any_vars[total_any_vars++], var_name, 63);
       }
 
       char prefix[MAX_LINE_LEN] = {};
@@ -209,7 +209,7 @@ void procesar_bloque_any(char *buffer) {
     var_name[i] = '\0';
     bool es_any = false;
     for (int j = 0; j < total_any_vars; j++) {
-      if (strcmp(lista_any_vars[j], var_name) == 0) {
+      if (strcmp(axo_any_vars[j], var_name) == 0) {
         es_any = true; break;
       }
     }
@@ -310,10 +310,10 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
 
   // [CORRECCIÓN CRÍTICA]: Clonación dinámica en Heap para evitar Dangling Pointers de arreglos locales
   if (strncmp(buffer, "return ", 7) == 0) {
-    if (inside_any_function && (actual_func_retorna_int_array || actual_func_retorna_dec_array)) {
+    if (nivel_llaves < 0 && (actual_func_retorna_int_array || actual_func_retorna_dec_array)) {
       char var_name[50] = {};
       sscanf(buffer, "return %[^=\n ;]", var_name);
-      
+
       int v_len = strlen(var_name);
       while(v_len > 0 && isspace((unsigned char)var_name[v_len - 1])) {
         var_name[v_len - 1] = '\0';
@@ -322,7 +322,7 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
 
       char temp_ret[1024];
       if (actual_func_retorna_int_array) {
-        sprintf(temp_ret, 
+        sprintf(temp_ret,
           "size_t _len = sizeof(%s)/sizeof(%s[0]);\n"
           "    int* _heap_data = malloc(_len * sizeof(int));\n"
           "    if (_heap_data) memcpy(_heap_data, %s, _len * sizeof(int));\n"
@@ -330,7 +330,7 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
           "    return _ret;", var_name, var_name, var_name);
       }
       else if (actual_func_retorna_dec_array) {
-        sprintf(temp_ret, 
+        sprintf(temp_ret,
           "size_t _len = sizeof(%s)/sizeof(%s[0]);\n"
           "    double* _heap_data = malloc(_len * sizeof(double));\n"
           "    if (_heap_data) memcpy(_heap_data, %s, _len * sizeof(double));\n"
@@ -489,38 +489,38 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
       replace_string(buffer, "≥", ">=", buffer);
       replace_string(buffer, "X|", "^", buffer);
 
-// [MEJORA EXCLUSIVA]: Interceptor inteligente de la Arquitectura Dinámica 'AxoAny'
-  if (strstr(buffer, "AxoAny ")) {
-    char var_name[64] = {};
-    char *p = strstr(buffer, "AxoAny ");
-    if (sscanf(p + 7, "%63s", var_name) == 1) {
-      char *eq = strchr(var_name, '='); if (eq) *eq = '\0';
-      char *sc = strchr(var_name, ';'); if (sc) *sc = '\0';
-      if (total_any_vars < 100 && strlen(var_name) > 0) {
-        strcpy(axo_any_vars[total_any_vars++], var_name);
+      // [MEJORA EXCLUSIVA]: Interceptor inteligente de la Arquitectura Dinámica 'AxoAny'
+      if (strstr(buffer, "AxoAny ")) {
+        char var_name[64] = {};
+        char *p = strstr(buffer, "AxoAny ");
+        if (sscanf(p + 7, "%63s", var_name) == 1) {
+          char *eq = strchr(var_name, '='); if (eq) *eq = '\0';
+          char *sc = strchr(var_name, ';'); if (sc) *sc = '\0';
+          if (total_any_vars < 100 && strlen(var_name) > 0) {
+            strcpy(axo_any_vars[total_any_vars++], var_name);
+          }
+        }
+
+        // Si se inicializa un AxoAny con un número complejo directo (ej: 2i;) lo envuelve en la macro helper
+        char *pos_i = strrchr(buffer, 'i');
+        if (pos_i && (pos_i == buffer + strlen(buffer) - 1 || *(pos_i + 1) == ';')) {
+          char temp[MAX_LINE_LEN] = {};
+          char *equal_sign = strchr(buffer, '=');
+          if (equal_sign) {
+            size_t left_len = (equal_sign - buffer) + 1;
+            strncpy(temp, buffer, left_len);
+            strcat(temp, " ANY_COMPLEX(");
+            char val_str[64] = {};
+            char *val_start = equal_sign + 1;
+            while (isspace((unsigned char)*val_start)) val_start++;
+            strncpy(val_str, val_start, pos_i - val_start);
+            strcat(temp, val_str);
+            strcat(temp, " * I);");
+            strcpy(buffer, temp);
+          }
+        }
       }
-    }
-    
-    // Si se inicializa un AxoAny con un número complejo directo (ej: 2i;) lo envuelve en la macro helper
-    char *pos_i = strrchr(buffer, 'i');
-    if (pos_i && (pos_i == buffer + strlen(buffer) - 1 || *(pos_i + 1) == ';')) {
-      char temp[MAX_LINE_LEN] = {};
-      char *equal_sign = strchr(buffer, '=');
-      if (equal_sign) {
-        size_t left_len = (equal_sign - buffer) + 1;
-        strncpy(temp, buffer, left_len);
-        strcat(temp, " ANY_COMPLEX(");
-        char val_str[64] = {};
-        char *val_start = equal_sign + 1;
-        while (isspace((unsigned char)*val_start)) val_start++;
-        strncpy(val_str, val_start, pos_i - val_start);
-        strcat(temp, val_str);
-        strcat(temp, " * I);");
-        strcpy(buffer, temp);
-      }
-    }
-  }
-  
+
       int len_int = strlen(buffer);
       if (len_int > 0) {
         char last_c = buffer[len_int - 1];
