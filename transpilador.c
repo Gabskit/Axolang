@@ -12,7 +12,7 @@
 
 #define MAX_LINE_LEN 65536
 #define MAX_BUFFER_FUNCTIONS 65536
-#define MAX_METHODS 655
+#define MAX_METHODS 65536
 
 // --- Variables globales de control de estado (C23 bool nativo) ---
 char funciones_paquetes[MAX_BUFFER_FUNCTIONS] = {};
@@ -20,13 +20,15 @@ char buffer_structs[MAX_BUFFER_FUNCTIONS] = {};
 char buffer_globales[MAX_BUFFER_FUNCTIONS] = {};
 bool in_pkg = false;
 bool in_func_inside_pkg = false;
-char current_pkg[655] = {};
+char current_pkg[65536] = {};
 
 // Control de retornos de arreglos y contextos de función
-bool inside_any_function = false;
+int nivel_llaves = 0;
 bool actual_func_retorna_int_array = false;
 bool actual_func_retorna_dec_array = false;
-
+// Registro dinámico de variables de tipo 'any'
+char lista_any_vars[512][64] = {};
+int total_any_vars = 0;
 // Estructura para registrar métodos dinámicamente
 char lista_metodos[MAX_METHODS][1024];
 int total_metodos = 0;
@@ -107,7 +109,144 @@ void replace_string(char *orig, const char *rep, const char *with, char *output)
   }
   strcpy(output, buffer);
 }
+// --- Procesador Inteligente de tipos Dinámicos 'any' ---
+void darnos_macro_any(const char *val_str, char *macro_out) {
+  const char *p = val_str;
+  while (isspace((unsigned char)*p)) p++;
 
+  if (strstr(p, "«") || strstr(p, "»") || strstr(p, "\"")) {
+    strcpy(macro_out, "ANY_STR");
+  } else if (strstr(p, "true") || strstr(p, "false")) {
+    strcpy(macro_out, "ANY_BOOL");
+  } else if (strchr(p, 'i') && !strstr(p, "printf")) {
+    strcpy(macro_out, "ANY_COMPLEX");
+  } else if (strchr(p, '*') || strstr(p, "=>")) {
+    strcpy(macro_out, "ANY_PTR");
+  } else if (strchr(p, '.')) {
+    strcpy(macro_out, "ANY_DEC");
+  } else {
+    strcpy(macro_out, "ANY_INT");
+  }
+}
+void procesar_bloque_any(char *buffer) {
+  char *any_ptr = strstr(buffer, "any ");
+  if (any_ptr && (any_ptr == buffer || es_delimitador(*(any_ptr - 1)))) {
+    char *equal_ptr = strchr(buffer, '=');
+    if (equal_ptr) {
+      char var_name[128] = {};
+      char val_part[MAX_LINE_LEN] = {};
+      char *src_name = any_ptr + 4;
+      while (isspace((unsigned char)*src_name)) src_name++;
+      int i = 0;
+      while (src_name[i] && !isspace((unsigned char)src_name[i]) && src_name[i] != '=') {
+        var_name[i] = src_name[i];
+        i++;
+      }
+      var_name[i] = '\0';
+
+      // Registrar variable en nuestra tabla de símbolos interna
+      if (total_any_vars < 512) {
+        strncpy(lista_any_vars[total_any_vars++], var_name, 63);
+      }
+
+      strcpy(val_part, equal_ptr + 1);
+      int val_len = strlen(val_part);
+      while (val_len > 0 && (isspace((unsigned char)val_part[val_len-1]) || val_part[val_len-1] == ';')) {
+        val_part[val_len-1] = '\0';
+        val_len--;
+      }
+
+      char macro[32];
+      darnos_macro_any(val_part, macro);
+
+      if (strcmp(macro, "ANY_COMPLEX") == 0) {
+        char *pos_i = strrchr(val_part, 'i');
+        if (pos_i) {
+          *pos_i = '\0'; strcat(val_part, " * I");
+        }
+      }
+      if (strcmp(macro, "ANY_PTR") == 0) {
+        char temp_ptr[MAX_LINE_LEN];
+        replace_string(val_part, "*", "&", temp_ptr);
+        strcpy(val_part, temp_ptr);
+      }
+
+      char prefix[MAX_LINE_LEN] = {};
+      strncpy(prefix, buffer, any_ptr - buffer);
+      prefix[any_ptr - buffer] = '\0';
+
+      sprintf(buffer, "%sAxoAny %s = %s(%s)", prefix, var_name, macro, val_part);
+    } else {
+      char var_name[128] = {};
+      char *src_name = any_ptr + 4;
+      while (isspace((unsigned char)*src_name)) src_name++;
+      int i = 0;
+      while (src_name[i] && !isspace((unsigned char)src_name[i]) && src_name[i] != ';') {
+        var_name[i] = src_name[i];
+        i++;
+      }
+      var_name[i] = '\0';
+
+      if (total_any_vars < 512) {
+        strncpy(lista_any_vars[total_any_vars++], var_name, 63);
+      }
+
+      char prefix[MAX_LINE_LEN] = {};
+      strncpy(prefix, buffer, any_ptr - buffer);
+      prefix[any_ptr - buffer] = '\0';
+      sprintf(buffer, "%sAxoAny %s", prefix, var_name);
+    }
+  } else if (!any_ptr && strchr(buffer, '=')) {
+    // Detectar reasignaciones dinámicas posteriores de variables registradas como 'any'
+    char var_name[128] = {};
+    char *start_line = buffer;
+    while (isspace((unsigned char)*start_line)) start_line++;
+    int i = 0;
+    while (start_line[i] && !isspace((unsigned char)start_line[i]) && start_line[i] != '=') {
+      var_name[i] = start_line[i];
+      i++;
+    }
+    var_name[i] = '\0';
+    bool es_any = false;
+    for (int j = 0; j < total_any_vars; j++) {
+      if (strcmp(lista_any_vars[j], var_name) == 0) {
+        es_any = true; break;
+      }
+    }
+
+    if (es_any) {
+      char *equal_ptr = strchr(buffer, '=');
+      char val_part[MAX_LINE_LEN] = {};
+      strcpy(val_part, equal_ptr + 1);
+      int val_len = strlen(val_part);
+      while (val_len > 0 && (isspace((unsigned char)val_part[val_len-1]) || val_part[val_len-1] == ';')) {
+        val_part[val_len-1] = '\0';
+        val_len--;
+      }
+
+      char macro[32];
+      darnos_macro_any(val_part, macro);
+
+      if (strcmp(macro, "ANY_COMPLEX") == 0) {
+        char *pos_i = strrchr(val_part, 'i');
+        if (pos_i) {
+          *pos_i = '\0'; strcat(val_part, " * I");
+        }
+      }
+      if (strcmp(macro, "ANY_PTR") == 0) {
+        char temp_ptr[MAX_LINE_LEN];
+        replace_string(val_part, "*", "&", temp_ptr);
+        strcpy(val_part, temp_ptr);
+      }
+
+      char prefix[MAX_LINE_LEN] = {};
+      strncpy(prefix, buffer, start_line - buffer);
+      prefix[start_line - buffer] = '\0';
+
+      sprintf(buffer, "%s%s = %s(%s)", prefix, var_name, macro, val_part);
+    }
+  }
+}
 void transpile_line(char *line, Includes *inc, char *out_line) {
   char src[MAX_LINE_LEN];
   strcpy(src, line);
@@ -127,7 +266,9 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
     strcpy(out_line, "");
     return;
   }
-
+  add_include(inc, "#include <complex.h>");
+  add_include(inc, "#include <math.h>");
+  add_include(inc, "#include <tgmath.h>");
   // 2. Directivas de inclusión del ecosistema Axolang (add <...>)
   if (strncmp(start, "add", 3) == 0) {
     if (strstr(start, "<Basic.axo>")) {
@@ -135,13 +276,15 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
       add_include(inc, "#include <stdlib.h>");
       add_include(inc, "#include <stddef.h>");
     }
-    if (strstr(start, "<Math.axo>")) {
-      add_include(inc, "#include <math.h>");
-      add_include(inc, "#include <tgmath.h>");
-    }
     if (strstr(start, "<Text.axo>")) {
       add_include(inc, "#include <string.h>");
       add_include(inc, "#include <ctype.h>");
+    }
+    if (strstr(start, "<Time.axo>")) {
+      add_include(inc, "#include <time.h>");
+    }
+    if (strstr(start, "<Signal.axo>")) {
+      add_include(inc, "#include <signal.h>");
     }
     strcpy(out_line, "");
     return;
@@ -158,24 +301,41 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
 
   // Control estricto de cierre de llaves en funciones globales
   if (strcmp(buffer, "}") == 0 && !in_pkg) {
-    inside_any_function = false;
+    nivel_llaves--;
     actual_func_retorna_int_array = false;
     actual_func_retorna_dec_array = false;
     strcpy(out_line, "}");
     return;
   }
 
-  // Interceptor del Return para estructuras dinámicas de arreglos Axolang
+  // [CORRECCIÓN CRÍTICA]: Clonación dinámica en Heap para evitar Dangling Pointers de arreglos locales
   if (strncmp(buffer, "return ", 7) == 0) {
     if (inside_any_function && (actual_func_retorna_int_array || actual_func_retorna_dec_array)) {
       char var_name[50] = {};
       sscanf(buffer, "return %[^=\n ;]", var_name);
+      
+      int v_len = strlen(var_name);
+      while(v_len > 0 && isspace((unsigned char)var_name[v_len - 1])) {
+        var_name[v_len - 1] = '\0';
+        v_len--;
+      }
+
       char temp_ret[1024];
       if (actual_func_retorna_int_array) {
-        sprintf(temp_ret, "AxoArray_int _ret = { .data = %s, .length = sizeof(%s)/sizeof(%s[0]) };\n    return _ret;", var_name, var_name, var_name);
+        sprintf(temp_ret, 
+          "size_t _len = sizeof(%s)/sizeof(%s[0]);\n"
+          "    int* _heap_data = malloc(_len * sizeof(int));\n"
+          "    if (_heap_data) memcpy(_heap_data, %s, _len * sizeof(int));\n"
+          "    AxoArray_int _ret = { .data = _heap_data, .length = _len };\n"
+          "    return _ret;", var_name, var_name, var_name);
       }
       else if (actual_func_retorna_dec_array) {
-        sprintf(temp_ret, "AxoArray_dec _ret = { .data = %s, .length = sizeof(%s)/sizeof(%s[0]) };\n    return _ret;", var_name, var_name, var_name);
+        sprintf(temp_ret, 
+          "size_t _len = sizeof(%s)/sizeof(%s[0]);\n"
+          "    double* _heap_data = malloc(_len * sizeof(double));\n"
+          "    if (_heap_data) memcpy(_heap_data, %s, _len * sizeof(double));\n"
+          "    AxoArray_dec _ret = { .data = _heap_data, .length = _len };\n"
+          "    return _ret;", var_name, var_name, var_name);
       }
 
       if (in_pkg && in_func_inside_pkg) {
@@ -195,9 +355,9 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
   // =============================================================
   if (in_pkg) {
     // CASO A: Inicio de un método del paquete (func nombre = ...)
-    if (!in_func_inside_pkg && (strncmp(buffer, "func ", 5) == 0 || strncmp(buffer, "Func ", 5) == 0)) {
+    if (!in_func_inside_pkg && (strncmp(buffer, "func ", 5) == 0)) {
       in_func_inside_pkg = true;
-      inside_any_function = true;
+      nivel_llaves++;
       char func_name[50] = {};
       sscanf(buffer, "%*s %[^= \t]", func_name);
 
@@ -221,25 +381,28 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
       }
 
       // Corrección de tipos en argumentos internos
-      replace_keyword_safe(argumentos, "Int", "int", argumentos);
-      replace_keyword_safe(argumentos, "Dec", "double", argumentos);
-      replace_keyword_safe(argumentos, "Bool", "bool", argumentos);
+      replace_keyword_safe(argumentos, "int", "int", argumentos);
+      replace_keyword_safe(argumentos, "dec", "double", argumentos);
+      replace_keyword_safe(argumentos, "bool", "bool", argumentos);
+      replace_keyword_safe(argumentos, "auto", "auto", argumentos);
+      replace_keyword_safe(argumentos, "any", "AxoAny", argumentos);
+      replace_keyword_safe(argumentos, "char", "char", argumentos);
 
       char ret_type[30] = "void";
-      if (strstr(buffer, ":[]int") || strstr(buffer, ":[]Int")) {
+      if (strstr(buffer, ":[]int")) {
         actual_func_retorna_int_array = true;
         strcpy(ret_type, "AxoArray_int");
       }
-      else if (strstr(buffer, ":[]dec") || strstr(buffer, ":[]Dec")) {
+      else if (strstr(buffer, ":[]dec")) {
         actual_func_retorna_dec_array = true;
         strcpy(ret_type, "AxoArray_dec");
       }
-      else if (strstr(buffer, ":int") || strstr(buffer, ":Int")) strcpy(ret_type, "int");
-      else if (strstr(buffer, ":dec") || strstr(buffer, ":Dec")) strcpy(ret_type, "double");
-      else if (strstr(buffer, ":char") || strstr(buffer, ":Char")) strcpy(ret_type, "char*");
-      else if (strstr(buffer, ":[]char") || strstr(buffer, ":[]Char")) strcpy(ret_type, "char*");
-      else if (strstr(buffer, ":bool") || strstr(buffer, ":Bool")) strcpy(ret_type, "bool");
-      else if (strstr(buffer, ":any") || strstr(buffer, ":any")) strcpy(ret_type, "void*");
+      else if (strstr(buffer, ":int")) strcpy(ret_type, "int");
+      else if (strstr(buffer, ":dec")) strcpy(ret_type, "double");
+      else if (strstr(buffer, ":char")) strcpy(ret_type, "char");
+      else if (strstr(buffer, ":[]char")) strcpy(ret_type, "char*");
+      else if (strstr(buffer, ":bool")) strcpy(ret_type, "bool");
+      else if (strstr(buffer, ":any")) strcpy(ret_type, "AxoAny");
 
       char cabecera[512];
       sprintf(cabecera, "%s _%s_%s(%s) {\n", ret_type, current_pkg, func_name, argumentos);
@@ -258,20 +421,41 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
       if (strcmp(buffer, "}") == 0) {
         strcat(funciones_paquetes, "}\n\n");
         in_func_inside_pkg = false;
-        inside_any_function = false;
+        nivel_llaves--;
         actual_func_retorna_int_array = false;
         actual_func_retorna_dec_array = false;
         strcpy(out_line, "");
         return;
       }
 
-      // Reemplazos de tipos seguros
-      replace_keyword_safe(buffer, "Int", "int", buffer);
-      replace_keyword_safe(buffer, "Dec", "double", buffer);
-      replace_keyword_safe(buffer, "Bool", "bool", buffer);
-      replace_keyword_safe(buffer, "Char", "char", buffer);
-      replace_keyword_safe(buffer, "Punt", "auto", buffer);
-      replace_keyword_safe(buffer, "any", "void*", buffer);
+      // Procesamiento global de variables y tipos
+      replace_keyword_safe(buffer, "int", "int", buffer);
+      replace_keyword_safe(buffer, "dec", "double", buffer);
+      replace_keyword_safe(buffer, "bool", "bool", buffer);
+      replace_keyword_safe(buffer, "char", "char", buffer);
+      replace_keyword_safe(buffer, "void", "void", buffer);
+      replace_keyword_safe(buffer, "auto", "auto", buffer);
+      replace_keyword_safe(buffer, "any", "AxoAny", buffer);
+
+      procesar_bloque_any(buffer);
+      // Números complejos Axolang (2.1i -> 2.1 * I)
+      if (strstr(buffer, "com ") || strncmp(buffer, "com", 3) == 0) {
+        replace_keyword_safe(buffer, "com", "double complex", buffer);
+        char *pos_i = strrchr(buffer, 'i');
+        if (pos_i && (pos_i == buffer + strlen(buffer) - 1 || *(pos_i + 1) == ';')) {
+          char temp[MAX_LINE_LEN] = {};
+          strncpy(temp, buffer, pos_i - buffer);
+          strcat(temp, " * I");
+          if (*(pos_i + 1) == ';') strcat(temp, ";");
+          strcpy(buffer, temp);
+        }
+      }
+
+      // Punteros (*variable -> &variable)
+      if (strstr(buffer, "punt ") || strncmp(buffer, "punt", 4) == 0) {
+        replace_keyword_safe(buffer, "punt", "auto", buffer);
+        replace_string(buffer, "= *", "= &", buffer);
+      }
 
       // Parseo de arreglos « » locales
       bool is_array_loc = (strstr(buffer, "[]") != nullptr && strchr(buffer, '=') != nullptr);
@@ -296,12 +480,54 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
         replace_string(buffer, "»", "\"", buffer);
       }
 
-      replace_keyword_safe(buffer, "Printf", "printf", buffer);
       replace_string(buffer, "=>", "&", buffer);
+      replace_string(buffer, "×", "*", buffer);
+      replace_string(buffer, "÷", "/", buffer);
+      replace_string(buffer, "√", "sqrt", buffer);
+      replace_string(buffer, "≠", "!=", buffer);
+      replace_string(buffer, "≤", "<=", buffer);
+      replace_string(buffer, "≥", ">=", buffer);
+      replace_string(buffer, "X|", "^", buffer);
 
+// [MEJORA EXCLUSIVA]: Interceptor inteligente de la Arquitectura Dinámica 'AxoAny'
+  if (strstr(buffer, "AxoAny ")) {
+    char var_name[64] = {};
+    char *p = strstr(buffer, "AxoAny ");
+    if (sscanf(p + 7, "%63s", var_name) == 1) {
+      char *eq = strchr(var_name, '='); if (eq) *eq = '\0';
+      char *sc = strchr(var_name, ';'); if (sc) *sc = '\0';
+      if (total_any_vars < 100 && strlen(var_name) > 0) {
+        strcpy(axo_any_vars[total_any_vars++], var_name);
+      }
+    }
+    
+    // Si se inicializa un AxoAny con un número complejo directo (ej: 2i;) lo envuelve en la macro helper
+    char *pos_i = strrchr(buffer, 'i');
+    if (pos_i && (pos_i == buffer + strlen(buffer) - 1 || *(pos_i + 1) == ';')) {
+      char temp[MAX_LINE_LEN] = {};
+      char *equal_sign = strchr(buffer, '=');
+      if (equal_sign) {
+        size_t left_len = (equal_sign - buffer) + 1;
+        strncpy(temp, buffer, left_len);
+        strcat(temp, " ANY_COMPLEX(");
+        char val_str[64] = {};
+        char *val_start = equal_sign + 1;
+        while (isspace((unsigned char)*val_start)) val_start++;
+        strncpy(val_str, val_start, pos_i - val_start);
+        strcat(temp, val_str);
+        strcat(temp, " * I);");
+        strcpy(buffer, temp);
+      }
+    }
+  }
+  
       int len_int = strlen(buffer);
-      if (len_int > 0 && buffer[len_int - 1] != '{' && buffer[len_int - 1] != '}' && buffer[len_int - 1] != ';' && buffer[len_int - 1] != "/") {
-        strcat(buffer, ";");
+      if (len_int > 0) {
+        char last_c = buffer[len_int - 1];
+        if (last_c != '{' && last_c != ';' && last_c != ',' && last_c != '/' &&
+          (last_c != '}' || strstr(buffer, "=") != nullptr || strstr(buffer, "[]") != nullptr)) {
+          strcat(buffer, ";");
+        }
       }
 
       strcat(funciones_paquetes, "    ");
@@ -314,6 +540,7 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
 
     // CASO C: Fin de toda la estructura del paquete
     if (strcmp(buffer, "}") == 0 && !in_func_inside_pkg) {
+      nivel_llaves--;
       sprintf(buffer, "} %s;\n", current_pkg);
       strcat(buffer_structs, buffer);
       in_pkg = false;
@@ -332,10 +559,54 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
       }
     }
 
-    replace_keyword_safe(buffer, "Int", "int", buffer);
-    replace_keyword_safe(buffer, "Dec", "double", buffer);
-    replace_keyword_safe(buffer, "Char", "char", buffer);
-    replace_keyword_safe(buffer, "Bool", "bool", buffer);
+    // Procesamiento global de variables y tipos
+    replace_keyword_safe(buffer, "int", "int", buffer);
+    replace_keyword_safe(buffer, "dec", "double", buffer);
+    replace_keyword_safe(buffer, "bool", "bool", buffer);
+    replace_keyword_safe(buffer, "char", "char", buffer);
+    replace_keyword_safe(buffer, "void", "void", buffer);
+    replace_keyword_safe(buffer, "auto", "auto", buffer);
+    replace_keyword_safe(buffer, "any", "AxoAny", buffer);
+
+
+    // Números complejos Axolang (2.1i -> 2.1 * I)
+    if (strstr(buffer, "com ") || strncmp(buffer, "com", 3) == 0) {
+      replace_keyword_safe(buffer, "com", "double complex", buffer);
+      char *pos_i = strrchr(buffer, 'i');
+      if (pos_i && (pos_i == buffer + strlen(buffer) - 1 || *(pos_i + 1) == ';')) {
+        char temp[MAX_LINE_LEN] = {};
+        strncpy(temp, buffer, pos_i - buffer);
+        strcat(temp, " * I");
+        if (*(pos_i + 1) == ';') strcat(temp, ";");
+        strcpy(buffer, temp);
+      }
+    }
+
+    // Punteros (*variable -> &variable)
+    if (strstr(buffer, "punt ") || strncmp(buffer, "punt", 4) == 0) {
+      replace_keyword_safe(buffer, "punt", "auto", buffer);
+      replace_string(buffer, "= *", "= &", buffer);
+    }
+
+
+    // Números complejos Axolang (2.1i -> 2.1 * I)
+    if (strstr(buffer, "com ") || strncmp(buffer, "com", 3) == 0) {
+      replace_keyword_safe(buffer, "com", "double complex", buffer);
+      char *pos_i = strrchr(buffer, 'i');
+      if (pos_i && (pos_i == buffer + strlen(buffer) - 1 || *(pos_i + 1) == ';')) {
+        char temp[MAX_LINE_LEN] = {};
+        strncpy(temp, buffer, pos_i - buffer);
+        strcat(temp, " * I");
+        if (*(pos_i + 1) == ';') strcat(temp, ";");
+        strcpy(buffer, temp);
+      }
+    }
+
+    // Punteros (*variable -> &variable)
+    if (strstr(buffer, "punt ") || strncmp(buffer, "punt", 4) == 0) {
+      replace_keyword_safe(buffer, "punt", "auto", buffer);
+      replace_string(buffer, "= *", "= &", buffer);
+    }
 
     int len_p = strlen(buffer);
     if (len_p > 0 && buffer[len_p - 1] != ';') strcat(buffer, ";");
@@ -352,6 +623,7 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
   // =============================================================
   if (strncmp(buffer, "pkg ", 4) == 0) {
     in_pkg = true;
+    nivel_llaves = 1;
     total_metodos = 0;
     char name[50] = {};
     sscanf(buffer, "pkg %s", name);
@@ -365,18 +637,18 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
   }
 
   // Procesamiento global de variables y tipos
-  replace_keyword_safe(buffer, "Int", "int", buffer);
-  replace_keyword_safe(buffer, "Dec", "double", buffer);
-  replace_keyword_safe(buffer, "Bool", "bool", buffer);
-  replace_keyword_safe(buffer, "Char", "char", buffer);
-  replace_keyword_safe(buffer, "Void", "void", buffer);
-  replace_keyword_safe(buffer, "Auto", "auto", buffer);
-  replace_keyword_safe(buffer, "any", "void*", buffer);
+  replace_keyword_safe(buffer, "int", "int", buffer);
+  replace_keyword_safe(buffer, "dec", "double", buffer);
+  replace_keyword_safe(buffer, "bool", "bool", buffer);
+  replace_keyword_safe(buffer, "char", "char", buffer);
+  replace_keyword_safe(buffer, "void", "void", buffer);
+  replace_keyword_safe(buffer, "auto", "auto", buffer);
+  replace_keyword_safe(buffer, "any", "AxoAny", buffer);
 
+  procesar_bloque_any(buffer);
   // Números complejos Axolang (2.1i -> 2.1 * I)
-  if (strstr(buffer, "Com ") || strncmp(buffer, "Com", 3) == 0) {
-    add_include(inc, "#include <complex.h>");
-    replace_keyword_safe(buffer, "Com", "double complex", buffer);
+  if (strstr(buffer, "com ") || strncmp(buffer, "com", 3) == 0) {
+    replace_keyword_safe(buffer, "com", "double complex", buffer);
     char *pos_i = strrchr(buffer, 'i');
     if (pos_i && (pos_i == buffer + strlen(buffer) - 1 || *(pos_i + 1) == ';')) {
       char temp[MAX_LINE_LEN] = {};
@@ -388,8 +660,8 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
   }
 
   // Punteros (*variable -> &variable)
-  if (strstr(buffer, "Punt ") || strncmp(buffer, "Punt", 4) == 0) {
-    replace_keyword_safe(buffer, "Punt", "auto", buffer);
+  if (strstr(buffer, "punt ") || strncmp(buffer, "punt", 4) == 0) {
+    replace_keyword_safe(buffer, "punt", "auto", buffer);
     replace_string(buffer, "= *", "= &", buffer);
   }
 
@@ -418,7 +690,7 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
 
   // Detección y parseo de Funciones Globales
   if (strncmp(buffer, "func ", 5) == 0) {
-    inside_any_function = true;
+    nivel_llaves++;
     char func_name[50] = {};
 
     if (sscanf(buffer, "%*s %[^= ]", func_name) == 1) {
@@ -431,27 +703,30 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
         argumentos[arg_len] = '\0';
       }
 
-      replace_keyword_safe(argumentos, "Int", "int", argumentos);
-      replace_keyword_safe(argumentos, "Dec", "double", argumentos);
-      replace_keyword_safe(argumentos, "Bool", "bool", argumentos);
+      replace_keyword_safe(argumentos, "int", "int", argumentos);
+      replace_keyword_safe(argumentos, "dec", "double", argumentos);
+      replace_keyword_safe(argumentos, "bool", "bool", argumentos);
+      replace_keyword_safe(argumentos, "char", "char", argumentos);
+      replace_keyword_safe(argumentos, "any", "AxoAny", argumentos);
 
       if (strcmp(func_name, "main") == 0) {
         sprintf(buffer, "int main() {");
       } else {
         char ret_type[30] = "void";
-        if (strstr(buffer, ":[]int") || strstr(buffer, ":[]Int")) {
+        if (strstr(buffer, ":[]int")) {
           actual_func_retorna_int_array = true;
           strcpy(ret_type, "AxoArray_int");
         }
-        else if (strstr(buffer, ":[]dec") || strstr(buffer, ":[]Dec")) {
+        else if (strstr(buffer, ":[]dec")) {
           actual_func_retorna_dec_array = true;
           strcpy(ret_type, "AxoArray_dec");
         }
-        else if (strstr(buffer, ":int") || strstr(buffer, ":Int")) strcpy(ret_type, "int");
-        else if (strstr(buffer, ":dec") || strstr(buffer, ":Dec")) strcpy(ret_type, "double");
-        else if (strstr(buffer, ":char") || strstr(buffer, ":Char")) strcpy(ret_type, "char*");
-        else if (strstr(buffer, ":bool") || strstr(buffer, ":Bool")) strcpy(ret_type, "bool");
-        else if (strstr(buffer, ":any") || strstr(buffer, ":any")) strcpy(ret_type, "void*");
+        else if (strstr(buffer, ":int")) strcpy(ret_type, "int");
+        else if (strstr(buffer, ":dec")) strcpy(ret_type, "double");
+        else if (strstr(buffer, ":char")) strcpy(ret_type, "char");
+        else if (strstr(buffer, ":[]char")) strcpy(ret_type, "char*");
+        else if (strstr(buffer, ":bool")) strcpy(ret_type, "bool");
+        else if (strstr(buffer, ":any")) strcpy(ret_type, "AxoAny");
 
         sprintf(buffer, "%s %s(%s) {", ret_type, func_name, argumentos);
       }
@@ -484,34 +759,38 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
   }
 
   // Ajustes de operadores de Axolang y funciones IO
-  replace_keyword_safe(buffer, "Printf", "printf", buffer);
   replace_string(buffer, ",system", "", buffer);
   replace_string(buffer, ", system", "", buffer);
   replace_string(buffer, "=>", "&", buffer);
   if (strstr(buffer, "Stop(system)")) strcpy(buffer, "return 0;");
-
+  replace_string(buffer, "×", "*", buffer);
+  replace_string(buffer, "÷", "/", buffer);
+  replace_string(buffer, "√", "sqrt", buffer);
   replace_string(buffer, "≠", "!=", buffer);
   replace_string(buffer, "≤", "<=", buffer);
   replace_string(buffer, "≥", ">=", buffer);
   replace_string(buffer, "X|", "^", buffer);
 
+  if (strchr(buffer, '{') != nullptr && strchr(buffer, '}') == nullptr) {
+    nivel_llaves++;
+  }
   // Regla estricta de punto y coma al final
   int len = strlen(buffer);
   if (len > 0) {
     char last_char = buffer[len - 1];
     if (last_char != '{' && last_char != ';' && last_char != ',' &&
-      strncmp(buffer, "if", 2) != 0 && strncmp(buffer, "for", 3) != 0 && strncmp(buffer, "while", 5) != 0) {
+      strncmp(buffer, "if", 2) != 0 && strncmp(buffer, "for", 3) != 0 && strncmp(buffer, "while", 5) != 0 && (last_char != '}' || strstr(buffer, "=") != NULL || strstr(buffer, "[]") != NULL)) {
       strcat(buffer, ";");
     }
   }
 
   // CRÍTICO: Si no estamos dentro de una función, la instrucción es una asignación global
-  if (!inside_any_function) {
+  if (nivel_llaves == 0) {
     strcat(buffer_globales, buffer);
     strcat(buffer_globales, "\n");
     strcpy(out_line, "");
   } else {
-    //strcpy(out_line, buffer);
+    strcpy(out_line, buffer); // CORREGIDO: Copiar las líneas internas de la función al cuerpo del archivo
   }
 }
 
@@ -545,7 +824,6 @@ int main(int argc, char *argv[]) {
   }
 
   Includes inc = {};
-
   size_t body_capacity = 32768;
   char *code_body = malloc(body_capacity);
   if (code_body == nullptr) {
@@ -577,7 +855,6 @@ int main(int argc, char *argv[]) {
     }
   }
   fclose(input);
-
   // === ARMADO DE ARQUITECTURA E INYECCIÓN JERÁRQUICA ===
   fprintf(output, "/* Código C23 generado automáticamente por Axolang (axoc) */\n");
   for (int i = 0; i < inc.count; i++) {
@@ -588,24 +865,47 @@ int main(int argc, char *argv[]) {
   fprintf(output, "typedef struct {\n    int* data;\n    size_t length;\n} AxoArray_int;\n");
   fprintf(output, "typedef struct {\n    double* data;\n    size_t length;\n} AxoArray_dec;\n\n");
 
+  // --- INYECCIÓN DE LA ARQUITECTURA DINÁMICA AXOANY ---
+  fprintf(output, "/* Arquitectura Dinámica 'any' de Axolang */\n");
+  fprintf(output, "typedef enum { T_INT, T_DEC, T_COMPLEX, T_STRING, T_BOOL, T_POINTER } AxoTipo;\n");
+  fprintf(output, "typedef struct {\n");
+  fprintf(output, "    AxoTipo tipo;\n");
+  fprintf(output, "    union {\n");
+  fprintf(output, "        int v_int;\n");
+  fprintf(output, "        double v_dec;\n");
+  fprintf(output, "        double complex v_complex;\n");
+  fprintf(output, "        char* v_string;\n");
+  fprintf(output, "        bool v_bool;\n");
+  fprintf(output, "        void* v_ptr;\n");
+  fprintf(output, "    } dato;\n");
+  fprintf(output, "} AxoAny;\n\n");
+
+  // Inyección de Macros de Asignación por literales compuestos (C23 standard compliant)
+  fprintf(output, "#define ANY_INT(val)     ((AxoAny){ .tipo = T_INT,     .dato.v_int = (val) })\n");
+  fprintf(output, "#define ANY_DEC(val)     ((AxoAny){ .tipo = T_DEC,     .dato.v_dec = (val) })\n");
+  fprintf(output, "#define ANY_COMPLEX(val) ((AxoAny){ .tipo = T_COMPLEX, .dato.v_complex = (val) })\n");
+  fprintf(output, "#define ANY_STR(val)     ((AxoAny){ .tipo = T_STRING,  .dato.v_string = (val) })\n");
+  fprintf(output, "#define ANY_BOOL(val)    ((AxoAny){ .tipo = T_BOOL,    .dato.v_bool = (val) })\n");
+  fprintf(output, "#define ANY_PTR(val)     ((AxoAny){ .tipo = T_POINTER, .dato.v_ptr = (val) })\n\n");
+
   if (strlen(buffer_structs) > 0) {
-    fprintf(buffer_globales, "\n/* Definición de Estructuras Axolang */\n");
-    fprintf(buffer_globales, "%s\n", buffer_structs);
+    fprintf(output, "\n/* Definición de Estructuras Axolang */\n");
+    fprintf(output, "%s\n", buffer_structs);
   }
 
   if (strlen(funciones_paquetes) > 0) {
-    fprintf(buffer_globales, "\n/* Métodos Extraídos de Paquetes Axolang */\n");
-    fprintf(buffer_globales, "%s\n", funciones_paquetes);
+    fprintf(output, "\n/* Métodos Extraídos de Paquetes Axolang */\n");
+    fprintf(output, "%s\n", funciones_paquetes);
   }
 
   // SECCIÓN CORRECTA: Variables Globales inyectadas en el Top-Level de C
   if (strlen(buffer_globales) > 0) {
-    fprintf(buffer_globales, "\n/* Variables Globales de Axolang */\n");
-    fprintf(buffer_globales, "%s\n", buffer_globales);
+    fprintf(output, "\n/* Variables Globales de Axolang */\n");
+    fprintf(output, "%s\n", buffer_globales);
   }
 
-  fprintf(buffer_globales, "\n%s", code_body);
-  fclose(buffer_globales);
+  fprintf(output, "\n%s", code_body);
+  fclose(output);
   free(code_body);
 
   char compile_command[512];

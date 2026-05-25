@@ -2,28 +2,28 @@ add <Basic.axo>
 int num[] = «0,3,5,7,3»
 char saludo[] = «hola»
 
-Com miComplejo = 2.1i
-Int edad = 25
-Dec pi = 3.1416
-Bool activo = true
-Punt miCopia = *edad
+com miComplejo = 2 + 2.1i
+int edad = 25
+dec pi = 3.1416
+bool activo = true
+punt miCopia = *edad
 
 pkg algo = {
   char letra
-  Dec gd
+  dec gd
   func saludar = ():[]char{
     return «Hola desde variable»
   }
   
-  func suma = (int a, int b):int {
+  func suma = (dec a, dec b):[]dec {
     // Al transpilearse, interceptamos esto para usar malloc dinámico
-    int sum[] = «0,0»
+    dec sum[] = «0,0»
     sum[0] = a + b 
-    sum[1] = a + a + b
-    return 0
+    sum[1] = a × b
+    return sum
   }
 }
-any variableComodin = «adios»
+any variableComodin = 2i
 
 func hola2 = (){
   printf(«Hola desde funcion globql\n»)
@@ -35,7 +35,7 @@ func main = (){
   printf(«%s\n», saludo)
   printf(«%s\n», p1.saludar())
   printf(«%c\n», p1.letra)
-  printf(«%s\n», (char*)variableComodin)
+  printf(«%.1fI\n», cimag(variableComodin))
   
   for (int i = 0; i < 5; i++){
     printf(«%d\n», num[i])
@@ -46,9 +46,9 @@ func main = (){
   printf(«%p\n», miCopia)
   
   // CAPTURA INTELIGENTE DEL ARREGLO RETORNADO
-  auto resultado = p1.suma(2, 4)
-  printf(«Resultado 1: %d\n», resultado.data[0])
-  printf(«Resultado 2: %d\n», resultado.data[1])
+  auto resultado = p1.suma(2.5, pi)
+  printf(«Resultado 1: %f\n», resultado.data[0])
+  printf(«Resultado 2: %f\n», resultado.data[1])
   printf(«Elementos devueltos: %zu\n», resultado.length)
   
   Stop(system)

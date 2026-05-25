@@ -1,8 +1,10 @@
 /* Código C23 generado automáticamente por Axolang (axoc) */
+#include <complex.h>
+#include <math.h>
+#include <tgmath.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
-#include <complex.h>
 
 /* Definiciones Base de Arreglos de Axolang */
 typedef struct {
@@ -14,13 +16,34 @@ typedef struct {
     size_t length;
 } AxoArray_dec;
 
+/* Arquitectura Dinámica 'any' de Axolang */
+typedef enum { T_INT, T_DEC, T_COMPLEX, T_STRING, T_BOOL, T_POINTER } AxoTipo;
+typedef struct {
+    AxoTipo tipo;
+    union {
+        int v_int;
+        double v_dec;
+        double complex v_complex;
+        char* v_string;
+        bool v_bool;
+        void* v_ptr;
+    } dato;
+} AxoAny;
+
+#define ANY_INT(val)     ((AxoAny){ .tipo = T_INT,     .dato.v_int = (val) })
+#define ANY_DEC(val)     ((AxoAny){ .tipo = T_DEC,     .dato.v_dec = (val) })
+#define ANY_COMPLEX(val) ((AxoAny){ .tipo = T_COMPLEX, .dato.v_complex = (val) })
+#define ANY_STR(val)     ((AxoAny){ .tipo = T_STRING,  .dato.v_string = (val) })
+#define ANY_BOOL(val)    ((AxoAny){ .tipo = T_BOOL,    .dato.v_bool = (val) })
+#define ANY_PTR(val)     ((AxoAny){ .tipo = T_POINTER, .dato.v_ptr = (val) })
+
 
 /* Definición de Estructuras Axolang */
 typedef struct {
     char letra;
     double gd;
     char* (*saludar)();
-    int (*suma)(int a, int b);
+    AxoArray_dec (*suma)(double a, double b);
 } algo;
 
 
@@ -29,12 +52,13 @@ char* _algo_saludar() {
     return "Hola desde variable";
 }
 
-int _algo_suma(int a, int b) {
+AxoArray_dec _algo_suma(double a, double b) {
     // Al transpilearse, interceptamos esto para usar malloc dinámico;
-    int sum[] = {0,0}
+    double sum[] = {0,0};
     sum[0] = a + b;
-    sum[1] = a + a + b;
-    return 0;
+    sum[1] = a * b;
+    AxoArray_dec _ret = { .data = sum, .length = sizeof(sum)/sizeof(sum[0]) };
+    return _ret;
 }
 
 
@@ -42,44 +66,36 @@ int _algo_suma(int a, int b) {
 /* Variables Globales de Axolang */
 int num[] = {0,3,5,7,3};
 char saludo[] = "hola";
-double complex miComplejo = 2.1 * I;
+double complex miComplejo = 2 + 2.1 * I;
 int edad = 25;
 double pi = 3.1416;
 bool activo = true;
 auto miCopia = &edad;
-void* variableComodin = "adios";
-hola2();
-printf("%.1f %.1fi\n", creal(miComplejo), cimag(miComplejo));
-printf("%p\n", miCopia);
-// CAPTURA INTELIGENTE DEL ARREGLO RETORNADO;
-auto resultado = p1.suma(2, 4);
-printf("Resultado 1: %d\n", resultado.data[0]);
-printf("Resultado 2: %d\n", resultado.data[1]);
-printf("Elementos devueltos: %zu\n", resultado.length);
-return 0;
+AxoAny variableComodin = 2i;
 
 
     void hola2() {
-    void hola2() {
+    printf("Hola desde funcion globql\n");
     }
     int main() {
     algo p1;
     p1.saludar = _algo_saludar;
     p1.suma = _algo_suma;
-    algo p1;
-    p1.saludar = _algo_saludar;
-    p1.suma = _algo_suma;
-    algo p1;
-    p1.saludar = _algo_saludar;
-    p1.suma = _algo_suma;
-    algo p1;
-    p1.saludar = _algo_saludar;
-    p1.suma = _algo_suma;
-    algo p1;
-    p1.saludar = _algo_saludar;
-    p1.suma = _algo_suma;
-    algo p1;
-    p1.saludar = _algo_saludar;
-    p1.suma = _algo_suma;
+    p1.letra = 'a';
+    printf("%s\n", saludo);
+    printf("%s\n", p1.saludar());
+    printf("%c\n", p1.letra);
+    printf("%.1fI\n", cimag(variableComodin));
+    for (int i = 0; i < 5; i++){
+    printf("%d\n", num[i]);
     }
+    hola2();
+    printf("%.1f %.1fi\n", creal(miComplejo), cimag(miComplejo));
+    printf("%p\n", miCopia);
+    // CAPTURA INTELIGENTE DEL ARREGLO RETORNADO;
+    auto resultado = p1.suma(2.5, pi);
+    printf("Resultado 1: %f\n", resultado.data[0]);
+    printf("Resultado 2: %f\n", resultado.data[1]);
+    printf("Elementos devueltos: %zu\n", resultado.length);
+    return 0;
     }
