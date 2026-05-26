@@ -2,6 +2,7 @@
 #include <complex.h>
 #include <math.h>
 #include <tgmath.h>
+#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -57,7 +58,11 @@ AxoArray_dec _algo_suma(double a, double b) {
     double sum[] = {0,0};
     sum[0] = a + b;
     sum[1] = a * b;
-    return sum;
+    size_t _len = sizeof(sum)/sizeof(sum[0]);
+    double* _heap_data = malloc(_len * sizeof(double));
+    if (_heap_data) memcpy(_heap_data, sum, _len * sizeof(double));
+    AxoArray_dec _ret = { .data = _heap_data, .length = _len };
+    return _ret;
 }
 
 

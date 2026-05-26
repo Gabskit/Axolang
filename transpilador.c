@@ -129,7 +129,7 @@ void darnos_macro_any(const char *val_str, char *macro_out) {
   }
 }
 void procesar_bloque_any(char *buffer) {
-  char *any_ptr = strstr(buffer, "any ");
+  char *any_ptr = strstr(buffer, "any");
   if (any_ptr && (any_ptr == buffer || es_delimitador(*(any_ptr - 1)))) {
     char *equal_ptr = strchr(buffer, '=');
     if (equal_ptr) {
@@ -160,9 +160,27 @@ void procesar_bloque_any(char *buffer) {
       darnos_macro_any(val_part, macro);
 
       if (strcmp(macro, "ANY_COMPLEX") == 0) {
+        // 1. Primero eliminamos saltos de línea (\n, \r) y espacios al final del valor
+        int len_v = strlen(val_part);
+        while (len_v > 0 && (val_part[len_v - 1] == '\n' || val_part[len_v - 1] == '\r' || val_part[len_v - 1] == ' ' || val_part[len_v - 1] == '\t')) {
+          val_part[len_v - 1] = '\0';
+          len_v--;
+        }
+
+        // 2. Ahora sí buscamos la 'i' de forma segura
         char *pos_i = strrchr(val_part, 'i');
         if (pos_i) {
-          *pos_i = '\0'; strcat(val_part, " * I");
+          *pos_i = '\0'; // Quitamos la 'i'
+
+          // Limpiamos si quedó algún espacio entre el número y la 'i' (ej. "2 i")
+          int len_num = strlen(val_part);
+          while (len_num > 0 && (val_part[len_num - 1] == ' ' || val_part[len_num - 1] == '\n')) {
+            val_part[len_num - 1] = '\0';
+            len_num--;
+          }
+
+          // 3. Concatenamos el formato correcto para C
+          strcat(val_part, " * I");
         }
       }
       if (strcmp(macro, "ANY_PTR") == 0) {
@@ -228,9 +246,23 @@ void procesar_bloque_any(char *buffer) {
       darnos_macro_any(val_part, macro);
 
       if (strcmp(macro, "ANY_COMPLEX") == 0) {
+        // Limpiar saltos de línea y espacios al final de la cadena
+        int len_v = strlen(val_part);
+        while (len_v > 0 && isspace((unsigned char)val_part[len_v - 1])) {
+          val_part[len_v - 1] = '\0';
+          len_v--;
+        }
+
         char *pos_i = strrchr(val_part, 'i');
         if (pos_i) {
-          *pos_i = '\0'; strcat(val_part, " * I");
+          *pos_i = '\0';
+          // Limpiar espacios sobrantes entre el número y la 'i'
+          int len_num = strlen(val_part);
+          while (len_num > 0 && isspace((unsigned char)val_part[len_num - 1])) {
+            val_part[len_num - 1] = '\0';
+            len_num--;
+          }
+          strcat(val_part, " * I");
         }
       }
       if (strcmp(macro, "ANY_PTR") == 0) {
@@ -269,6 +301,7 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
   add_include(inc, "#include <complex.h>");
   add_include(inc, "#include <math.h>");
   add_include(inc, "#include <tgmath.h>");
+  add_include(inc, "#include <string.h>");
   // 2. Directivas de inclusión del ecosistema Axolang (add <...>)
   if (strncmp(start, "add", 3) == 0) {
     if (strstr(start, "<Basic.axo>")) {
@@ -277,7 +310,6 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
       add_include(inc, "#include <stddef.h>");
     }
     if (strstr(start, "<Text.axo>")) {
-      add_include(inc, "#include <string.h>");
       add_include(inc, "#include <ctype.h>");
     }
     if (strstr(start, "<Time.axo>")) {
@@ -289,7 +321,23 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
     strcpy(out_line, "");
     return;
   }
-
+  // === COPIA Y PEGA ESTO JUSTO AHÍ ===
+  if (strncmp(start, "any ", 4) == 0) {
+      char linea_convertida[MAX_LINE_LEN] = {0};
+      
+      // Enviamos 'start' (la línea limpia sin espacios iniciales) para procesar las macros
+      procesar_bloque_any(start, linea_convertida);
+      
+      // Si estamos en el ámbito global (nivel_llaves == 0) se guarda en las globales
+      if (nivel_llaves == 0 && !in_pkg) {
+          strcat(buffer_globales, linea_convertida);
+          strcat(buffer_globales, "\n");
+      } else {
+          strcat(code_body, linea_convertida);
+          strcat(code_body, "\n");
+      }
+      return; // Nos salimos de la función inmediatamente para no duplicar la línea
+  }
   // Ignorar llamadas directas de main() al final del script
   if (strcmp(start, "main()") == 0 || strcmp(start, "main") == 0) {
     strcpy(out_line, "");
@@ -310,7 +358,7 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
 
   // [CORRECCIÓN CRÍTICA]: Clonación dinámica en Heap para evitar Dangling Pointers de arreglos locales
   if (strncmp(buffer, "return ", 7) == 0) {
-    if (nivel_llaves < 0 && (actual_func_retorna_int_array || actual_func_retorna_dec_array)) {
+    if (nivel_llaves > 0 && (actual_func_retorna_int_array || actual_func_retorna_dec_array)) {
       char var_name[50] = {};
       sscanf(buffer, "return %[^=\n ;]", var_name);
 
@@ -621,7 +669,7 @@ void transpile_line(char *line, Includes *inc, char *out_line) {
   // =============================================================
   // ESTADO: ÁMBITO GLOBAL / FUERA DE PAQUETES
   // =============================================================
-  if (strncmp(buffer, "pkg ", 4) == 0) {
+  if (strncmp(buffer, "pkg", 4) == 0) {
     in_pkg = true;
     nivel_llaves = 1;
     total_metodos = 0;
