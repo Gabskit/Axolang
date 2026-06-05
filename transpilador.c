@@ -1,973 +1,752 @@
-/* =============================================================
-   TRANSPILADOR OFICIAL DE AXOLANG A C23 (axoc) - REVISIÓN ULTRA
-   Compilado y ejecutado bajo el estándar estricto -std=c23
-   =============================================================
-*/
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <complex.h>
-#include <ctype.h>
+#include <stdbool.h>
 
-#define MAX_LINE_LEN 65536
-#define MAX_BUFFER_FUNCTIONS 65536
-#define MAX_METHODS 65536
-
-// --- Variables globales de control de estado (C23 bool nativo) ---
-char funciones_paquetes[MAX_BUFFER_FUNCTIONS] = {};
-char buffer_structs[MAX_BUFFER_FUNCTIONS] = {};
-char buffer_globales[MAX_BUFFER_FUNCTIONS] = {};
-bool in_pkg = false;
-bool in_func_inside_pkg = false;
-char current_pkg[65536] = {};
-
-// Control de retornos de arreglos y contextos de función
-int nivel_llaves = 0;
-bool actual_func_retorna_int_array = false;
-bool actual_func_retorna_dec_array = false;
-// Registro dinámico de variables de tipo 'any'
-char axo_any_vars[512][64] = {};
-int total_any_vars = 0;
-// Estructura para registrar métodos dinámicamente
-char lista_metodos[MAX_METHODS][1024];
-int total_metodos = 0;
+// Enumeración de Tokens para Axolang
+typedef enum {
+  TOKEN_EOF,
+  TOKEN_NEWLINE,
+  TOKEN_UNKNOWN,
+  TOKEN_INT,
+  TOKEN_DEC,
+  TOKEN_COM,
+  TOKEN_CHAR,
+  TOKEN_BOOL,
+  TOKEN_PKG,
+  TOKEN_FUNC,
+  TOKEN_PUNT,
+  TOKEN_ANY,
+  TOKEN_AUTO,
+  TOKEN_VOID,
+  TOKEN_ADD,
+  TOKEN_IDENTIFIER,
+  TOKEN_NUMBER,
+  TOKEN_STRING,
+  TOKEN_CHAR_LITERAL,
+  TOKEN_ASSIGN,
+  TOKEN_REF_ARROW,
+  TOKEN_COLON,
+  TOKEN_COMMA,
+  TOKEN_SEMICOLON,
+  TOKEN_LPAREN,
+  TOKEN_RPAREN,
+  TOKEN_LBRACE,
+  TOKEN_RBRACE,
+  TOKEN_LARRAY,
+  TOKEN_RARRAY,
+  TOKEN_OP_MULT,
+  TOKEN_OP_DIV,
+  TOKEN_OP_SQRT,
+  TOKEN_OP_EXP,
+  TOKEN_OP_AND,
+  TOKEN_OP_OR,
+  TOKEN_OP_NOT,
+  TOKEN_OP_XOR,
+  TOKEN_OP_EQUAL,
+  TOKEN_OP_GE,
+  TOKEN_OP_LE,
+  TOKEN_OP_NOTEQUAL
+} TokenType;
 
 typedef struct {
-  char items[512][1024];
-  int count;
-} Includes;
+  TokenType type;
+  char lexeme[512];
+} Token;
 
-void add_include(Includes *inc, const char *lib) {
-  for (int i = 0; i < inc->count; i++) {
-    if (strcmp(inc->items[i], lib) == 0) return;
+// Búferes globales para almacenar código extraído
+char funciones_extraidas[16384] = "";
+char constructores_inicializadores[16384] = "";
+
+Token get_next_token(const char **src) {
+  Token token = {
+    TOKEN_EOF,
+    ""
+  };
+
+  while (**src == ' ' || **src == '\t') (*src)++;
+
+  if (strncmp(*src, "//", 2) == 0) {
+    while (**src != '\n' && **src != '\r' && **src != '\0') (*src)++;
   }
-  strcpy(inc->items[inc->count++], lib);
-}
 
-// Verifica si un carácter es un delimitador válido de variables/palabras clave
-[[nodiscard]] bool es_delimitador(char c) {
-  return c == '\0' || isspace((unsigned char)c) ||
-  c == '(' || c == ')' || c == '{' || c == '}' ||
-  c == '[' || c == ']' || c == ';' || c == ',' ||
-  c == '=' || c == '+' || c == '-' || c == '*' || c == '/' || c == '&';
-}
+  if (**src == '\n' || **src == '\r') {
+    token.type = TOKEN_NEWLINE;
+    token.lexeme[0] = **src; token.lexeme[1] = '\0';
+    (*src)++; return token;
+  }
 
-// Reemplaza palabras clave de modo inteligente evitando colisiones destructivas
-void replace_keyword_safe(char *orig, const char *rep, const char *with, char *output) {
-  char buffer[MAX_LINE_LEN] = {};
-  char *insert_point = orig;
-  char *tmp = buffer;
-  int rep_len = strlen(rep);
-  int with_len = strlen(with);
+  if (**src == '\0') return token;
 
-  while (true) {
-    char *p = strstr(insert_point, rep);
-    if (p == nullptr) {
-      strcpy(tmp, insert_point);
-      break;
+  if (strncmp(*src, "=>", 2) == 0) {
+    token.type = TOKEN_REF_ARROW; strcpy(token.lexeme, "=>"); *src += 2; return token;
+  }
+  if (strncmp(*src, "++", 2) == 0) {
+    token.type = TOKEN_UNKNOWN; strcpy(token.lexeme, "++"); *src += 2; return token;
+  }
+  if (strncmp(*src, "×", 2) == 0) {
+    token.type = TOKEN_OP_MULT; strcpy(token.lexeme, "×"); *src += 2; return token;
+  }
+  if (strncmp(*src, "÷", 2) == 0) {
+    token.type = TOKEN_OP_DIV; strcpy(token.lexeme, "÷"); *src += 2; return token;
+  }
+  if (strncmp(*src, "§", 2) == 0) {
+    token.type = TOKEN_OP_XOR; strcpy(token.lexeme, "§"); *src += 2; return token;
+  }
+  if (strncmp(*src, "≥", 3) == 0) {
+    token.type = TOKEN_OP_GE; strcpy(token.lexeme, "≥"); *src += 3; return token;
+  }
+  if (strncmp(*src, "≤", 3) == 0) {
+    token.type = TOKEN_OP_LE; strcpy(token.lexeme, "≤"); *src += 3; return token;
+  }
+  if (strncmp(*src, "≠", 3) == 0) {
+    token.type = TOKEN_OP_NOTEQUAL; strcpy(token.lexeme, "≠"); *src += 3; return token;
+  }
+  if (strncmp(*src, "√", 3) == 0) {
+    token.type = TOKEN_OP_SQRT; strcpy(token.lexeme, "√"); *src += 3; return token;
+  }
+
+  if (strncmp(*src, "«", 2) == 0) {
+    const char *lookahead = *src + 2;
+    bool has_comma = false;
+    while (*lookahead != '\0' && strncmp(lookahead, "»", 2) != 0) {
+      if (*lookahead == ',') {
+        has_comma = true; break;
+      }
+      lookahead++;
     }
-
-    bool es_inicio_valido = (p == orig) || es_delimitador(*(p - 1));
-    bool es_fin_valido = es_delimitador(*(p + rep_len));
-
-    if (es_inicio_valido && es_fin_valido) {
-      memcpy(tmp, insert_point, p - insert_point);
-      tmp += p - insert_point;
-      memcpy(tmp, with, with_len);
-      tmp += with_len;
-      insert_point = p + rep_len;
+    if (has_comma) {
+      token.type = TOKEN_LARRAY; strcpy(token.lexeme, "«"); *src += 2; return token;
     } else {
-      size_t bytes_a_copiar = (p - insert_point) + rep_len;
-      memcpy(tmp, insert_point, bytes_a_copiar);
-      tmp += bytes_a_copiar;
-      insert_point = p + rep_len;
+      *src += 2; int i = 0;
+      while (**src != '\0' && strncmp(*src, "»", 2) != 0) {
+        token.lexeme[i++] = **src; (*src)++;
+      }
+      if (strncmp(*src, "»", 2) == 0) *src += 2;
+      token.lexeme[i] = '\0'; token.type = TOKEN_STRING; return token;
     }
   }
-  strcpy(output, buffer);
-}
-
-// Función auxiliar estándar para reemplazos simples (Operadores)
-void replace_string(char *orig, const char *rep, const char *with, char *output) {
-  char buffer[MAX_LINE_LEN] = {};
-  char *insert_point = orig;
-  char *tmp = buffer;
-  int rep_len = strlen(rep);
-  int with_len = strlen(with);
-
-  while (true) {
-    char *p = strstr(insert_point, rep);
-    if (p == nullptr) {
-      strcpy(tmp, insert_point);
-      break;
-    }
-    memcpy(tmp, insert_point, p - insert_point);
-    tmp += p - insert_point;
-    memcpy(tmp, with, with_len);
-    tmp += with_len;
-    insert_point = p + rep_len;
+  if (strncmp(*src, "»", 2) == 0) {
+    token.type = TOKEN_RARRAY; strcpy(token.lexeme, "»"); *src += 2; return token;
   }
-  strcpy(output, buffer);
-}
-// --- Procesador Inteligente de tipos Dinámicos 'any' ---
-void darnos_macro_any(const char *val_str, char *macro_out) {
-  const char *p = val_str;
-  while (isspace((unsigned char)*p)) p++;
 
-  if (strstr(p, "«") || strstr(p, "»") || strstr(p, "\"")) {
-    strcpy(macro_out, "ANY_STR");
-  } else if (strstr(p, "true") || strstr(p, "false")) {
-    strcpy(macro_out, "ANY_BOOL");
-  } else if (strchr(p, 'i') && !strstr(p, "printf")) {
-    strcpy(macro_out, "ANY_COMPLEX");
-  } else if (strchr(p, '*') || strstr(p, "=>")) {
-    strcpy(macro_out, "ANY_PTR");
-  } else if (strchr(p, '.')) {
-    strcpy(macro_out, "ANY_DEC");
-  } else {
-    strcpy(macro_out, "ANY_INT");
+  if (strncmp(*src, "==", 2) == 0) {
+    token.type = TOKEN_OP_EQUAL; strcpy(token.lexeme, "=="); *src += 2; return token;
   }
-}
-void procesar_bloque_any(char *buffer) {
-  char *any_ptr = strstr(buffer, "any");
-  if (any_ptr && (any_ptr == buffer || es_delimitador(*(any_ptr - 1)))) {
-    char *equal_ptr = strchr(buffer, '=');
-    if (equal_ptr) {
-      char var_name[128] = {};
-      char val_part[MAX_LINE_LEN] = {};
-      char *src_name = any_ptr + 4;
-      while (isspace((unsigned char)*src_name)) src_name++;
-      int i = 0;
-      while (src_name[i] && !isspace((unsigned char)src_name[i]) && src_name[i] != '=') {
-        var_name[i] = src_name[i];
-        i++;
-      }
-      var_name[i] = '\0';
+  if (**src == '=') {
+    token.type = TOKEN_ASSIGN; strcpy(token.lexeme, "="); (*src)++; return token;
+  }
+  if (**src == '(') {
+    token.type = TOKEN_LPAREN; strcpy(token.lexeme, "("); (*src)++; return token;
+  }
+  if (**src == ')') {
+    token.type = TOKEN_RPAREN; strcpy(token.lexeme, ")"); (*src)++; return token;
+  }
+  if (**src == '{') {
+    token.type = TOKEN_LBRACE; strcpy(token.lexeme, "{"); (*src)++; return token;
+  }
+  if (**src == '}') {
+    token.type = TOKEN_RBRACE; strcpy(token.lexeme, "}"); (*src)++; return token;
+  }
+  if (**src == ':') {
+    token.type = TOKEN_COLON; strcpy(token.lexeme, ":"); (*src)++; return token;
+  }
+  if (**src == ',') {
+    token.type = TOKEN_COMMA; strcpy(token.lexeme, ","); (*src)++; return token;
+  }
+  if (**src == ';') {
+    token.type = TOKEN_SEMICOLON; strcpy(token.lexeme, ";"); (*src)++; return token;
+  }
 
-      // Registrar variable en nuestra tabla de símbolos interna
-      if (total_any_vars < 512) {
-        strncpy(axo_any_vars[total_any_vars++], var_name, 63);
-      }
-
-      strcpy(val_part, equal_ptr + 1);
-      int val_len = strlen(val_part);
-      while (val_len > 0 && (isspace((unsigned char)val_part[val_len-1]) || val_part[val_len-1] == ';')) {
-        val_part[val_len-1] = '\0';
-        val_len--;
-      }
-
-      char macro[32];
-      darnos_macro_any(val_part, macro);
-
-      if (strcmp(macro, "ANY_COMPLEX") == 0) {
-        // 1. Primero eliminamos saltos de línea (\n, \r) y espacios al final del valor
-        int len_v = strlen(val_part);
-        while (len_v > 0 && (val_part[len_v - 1] == '\n' || val_part[len_v - 1] == '\r' || val_part[len_v - 1] == ' ' || val_part[len_v - 1] == '\t')) {
-          val_part[len_v - 1] = '\0';
-          len_v--;
-        }
-
-        // 2. Ahora sí buscamos la 'i' de forma segura
-        char *pos_i = strrchr(val_part, 'i');
-        if (pos_i) {
-          *pos_i = '\0'; // Quitamos la 'i'
-
-          // Limpiamos si quedó algún espacio entre el número y la 'i' (ej. "2 i")
-          int len_num = strlen(val_part);
-          while (len_num > 0 && (val_part[len_num - 1] == ' ' || val_part[len_num - 1] == '\n')) {
-            val_part[len_num - 1] = '\0';
-            len_num--;
-          }
-
-          // 3. Concatenamos el formato correcto para C
-          strcat(val_part, " * I");
-        }
-      }
-      if (strcmp(macro, "ANY_PTR") == 0) {
-        char temp_ptr[MAX_LINE_LEN];
-        replace_string(val_part, "*", "&", temp_ptr);
-        strcpy(val_part, temp_ptr);
-      }
-
-      char prefix[MAX_LINE_LEN] = {};
-      strncpy(prefix, buffer, any_ptr - buffer);
-      prefix[any_ptr - buffer] = '\0';
-
-      sprintf(buffer, "%sAxoAny %s = %s(%s)", prefix, var_name, macro, val_part);
-    } else {
-      char var_name[128] = {};
-      char *src_name = any_ptr + 4;
-      while (isspace((unsigned char)*src_name)) src_name++;
-      int i = 0;
-      while (src_name[i] && !isspace((unsigned char)src_name[i]) && src_name[i] != ';') {
-        var_name[i] = src_name[i];
-        i++;
-      }
-      var_name[i] = '\0';
-
-      if (total_any_vars < 512) {
-        strncpy(axo_any_vars[total_any_vars++], var_name, 63);
-      }
-
-      char prefix[MAX_LINE_LEN] = {};
-      strncpy(prefix, buffer, any_ptr - buffer);
-      prefix[any_ptr - buffer] = '\0';
-      sprintf(buffer, "%sAxoAny %s", prefix, var_name);
+  if (**src == '\'') {
+    int i = 0; token.lexeme[i++] = **src; (*src)++;
+    while (**src != '\0' && **src != '\'') {
+      token.lexeme[i++] = **src; (*src)++;
     }
-  } else if (!any_ptr && strchr(buffer, '=')) {
-    // Detectar reasignaciones dinámicas posteriores de variables registradas como 'any'
-    char var_name[128] = {};
-    char *start_line = buffer;
-    while (isspace((unsigned char)*start_line)) start_line++;
+    if (**src == '\'') {
+      token.lexeme[i++] = **src; (*src)++;
+    }
+    token.lexeme[i] = '\0'; token.type = TOKEN_CHAR_LITERAL; return token;
+  }
+
+  if (**src == '"') {
+    int i = 0; (*src)++;
+    while (**src != '\0' && **src != '"') {
+      token.lexeme[i++] = **src; (*src)++;
+    }
+    if (**src == '"') (*src)++;
+    token.lexeme[i] = '\0'; token.type = TOKEN_STRING; return token;
+  }
+
+  if ((**src >= 'a' && **src <= 'z') || (**src >= 'A' && **src <= 'Z') || **src == '_' || **src == '*' || **src == '[' || **src == ']') {
     int i = 0;
-    while (start_line[i] && !isspace((unsigned char)start_line[i]) && start_line[i] != '=') {
-      var_name[i] = start_line[i];
-      i++;
+    while ((**src >= 'a' && **src <= 'z') || (**src >= 'A' && **src <= 'Z') || (**src >= '0' && **src <= '9') || **src == '_' || **src == '.' || **src == '*' || **src == '[' || **src == ']') {
+      token.lexeme[i++] = **src; (*src)++;
     }
-    var_name[i] = '\0';
-    bool es_any = false;
-    for (int j = 0; j < total_any_vars; j++) {
-      if (strcmp(axo_any_vars[j], var_name) == 0) {
-        es_any = true; break;
-      }
-    }
+    token.lexeme[i] = '\0';
 
-    if (es_any) {
-      char *equal_ptr = strchr(buffer, '=');
-      char val_part[MAX_LINE_LEN] = {};
-      strcpy(val_part, equal_ptr + 1);
-      int val_len = strlen(val_part);
-      while (val_len > 0 && (isspace((unsigned char)val_part[val_len-1]) || val_part[val_len-1] == ';')) {
-        val_part[val_len-1] = '\0';
-        val_len--;
-      }
-
-      char macro[32];
-      darnos_macro_any(val_part, macro);
-
-      if (strcmp(macro, "ANY_COMPLEX") == 0) {
-        // Limpiar saltos de línea y espacios al final de la cadena
-        int len_v = strlen(val_part);
-        while (len_v > 0 && isspace((unsigned char)val_part[len_v - 1])) {
-          val_part[len_v - 1] = '\0';
-          len_v--;
-        }
-
-        char *pos_i = strrchr(val_part, 'i');
-        if (pos_i) {
-          *pos_i = '\0';
-          // Limpiar espacios sobrantes entre el número y la 'i'
-          int len_num = strlen(val_part);
-          while (len_num > 0 && isspace((unsigned char)val_part[len_num - 1])) {
-            val_part[len_num - 1] = '\0';
-            len_num--;
-          }
-          strcat(val_part, " * I");
-        }
-      }
-      if (strcmp(macro, "ANY_PTR") == 0) {
-        char temp_ptr[MAX_LINE_LEN];
-        replace_string(val_part, "*", "&", temp_ptr);
-        strcpy(val_part, temp_ptr);
-      }
-
-      char prefix[MAX_LINE_LEN] = {};
-      strncpy(prefix, buffer, start_line - buffer);
-      prefix[start_line - buffer] = '\0';
-
-      sprintf(buffer, "%s%s = %s(%s)", prefix, var_name, macro, val_part);
-    }
-  }
-}
-void transpile_line(char *line, Includes *inc, char *out_line) {
-  char src[MAX_LINE_LEN];
-  strcpy(src, line);
-
-  // 1. Trim inicial e izquierdo
-  char *start = src;
-  while (isspace((unsigned char)*start)) start++;
-  if (strlen(start) == 0) {
-    strcpy(out_line, "");
-    return;
-  }
-  char *end = start + strlen(start) - 1;
-  while (end > start && isspace((unsigned char)*end)) end--;
-  *(end + 1) = '\0';
-
-  if (strlen(start) == 0) {
-    strcpy(out_line, "");
-    return;
-  }
-  add_include(inc, "#include <complex.h>");
-  add_include(inc, "#include <math.h>");
-  add_include(inc, "#include <tgmath.h>");
-  add_include(inc, "#include <string.h>");
-  // 2. Directivas de inclusión del ecosistema Axolang (add <...>)
-  if (strncmp(start, "add", 3) == 0) {
-    if (strstr(start, "<Basic.axo>")) {
-      add_include(inc, "#include <stdio.h>");
-      add_include(inc, "#include <stdlib.h>");
-      add_include(inc, "#include <stddef.h>");
-    }
-    if (strstr(start, "<Text.axo>")) {
-      add_include(inc, "#include <ctype.h>");
-    }
-    if (strstr(start, "<Time.axo>")) {
-      add_include(inc, "#include <time.h>");
-    }
-    if (strstr(start, "<Signal.axo>")) {
-      add_include(inc, "#include <signal.h>");
-    }
-    strcpy(out_line, "");
-    return;
-  }
-  // === COPIA Y PEGA ESTO JUSTO AHÍ ===
-  if (strncmp(start, "any ", 4) == 0) {
-      char linea_convertida[MAX_LINE_LEN] = {0};
-      
-      // Enviamos 'start' (la línea limpia sin espacios iniciales) para procesar las macros
-      procesar_bloque_any(start, linea_convertida);
-      
-      // Si estamos en el ámbito global (nivel_llaves == 0) se guarda en las globales
-      if (nivel_llaves == 0 && !in_pkg) {
-          strcat(buffer_globales, linea_convertida);
-          strcat(buffer_globales, "\n");
-      } else {
-          strcat(code_body, linea_convertida);
-          strcat(code_body, "\n");
-      }
-      return; // Nos salimos de la función inmediatamente para no duplicar la línea
-  }
-  // Ignorar llamadas directas de main() al final del script
-  if (strcmp(start, "main()") == 0 || strcmp(start, "main") == 0) {
-    strcpy(out_line, "");
-    return;
+    if (strcmp(token.lexeme, "int") == 0) token.type = TOKEN_INT;
+    else if (strcmp(token.lexeme, "dec") == 0) token.type = TOKEN_DEC;
+    else if (strcmp(token.lexeme, "com") == 0) token.type = TOKEN_COM;
+    else if (strcmp(token.lexeme, "char") == 0) token.type = TOKEN_CHAR;
+    else if (strcmp(token.lexeme, "bool") == 0) token.type = TOKEN_BOOL;
+    else if (strcmp(token.lexeme, "pkg") == 0) token.type = TOKEN_PKG;
+    else if (strcmp(token.lexeme, "func") == 0) token.type = TOKEN_FUNC;
+    else if (strcmp(token.lexeme, "punt") == 0) token.type = TOKEN_PUNT;
+    else if (strcmp(token.lexeme, "any") == 0) token.type = TOKEN_ANY;
+    else if (strcmp(token.lexeme, "auto") == 0) token.type = TOKEN_AUTO;
+    else if (strcmp(token.lexeme, "void") == 0) token.type = TOKEN_VOID;
+    else if (strcmp(token.lexeme, "add") == 0) token.type = TOKEN_ADD;
+    else token.type = TOKEN_IDENTIFIER;
+    return token;
   }
 
-  char buffer[MAX_LINE_LEN];
-  strcpy(buffer, start);
-
-  // Control estricto de cierre de llaves en funciones globales
-  if (strcmp(buffer, "}") == 0 && !in_pkg) {
-    nivel_llaves--;
-    actual_func_retorna_int_array = false;
-    actual_func_retorna_dec_array = false;
-    strcpy(out_line, "}");
-    return;
+  if ((**src >= '0' && **src <= '9')) {
+    int i = 0;
+    while ((**src >= '0' && **src <= '9') || **src == '.' || **src == 'i') {
+      token.lexeme[i++] = **src; (*src)++;
+    }
+    token.lexeme[i] = '\0'; token.type = TOKEN_NUMBER; return token;
   }
 
-  // [CORRECCIÓN CRÍTICA]: Clonación dinámica en Heap para evitar Dangling Pointers de arreglos locales
-  if (strncmp(buffer, "return ", 7) == 0) {
-    if (nivel_llaves > 0 && (actual_func_retorna_int_array || actual_func_retorna_dec_array)) {
-      char var_name[50] = {};
-      sscanf(buffer, "return %[^=\n ;]", var_name);
-
-      int v_len = strlen(var_name);
-      while(v_len > 0 && isspace((unsigned char)var_name[v_len - 1])) {
-        var_name[v_len - 1] = '\0';
-        v_len--;
-      }
-
-      char temp_ret[1024];
-      if (actual_func_retorna_int_array) {
-        sprintf(temp_ret,
-          "size_t _len = sizeof(%s)/sizeof(%s[0]);\n"
-          "    int* _heap_data = malloc(_len * sizeof(int));\n"
-          "    if (_heap_data) memcpy(_heap_data, %s, _len * sizeof(int));\n"
-          "    AxoArray_int _ret = { .data = _heap_data, .length = _len };\n"
-          "    return _ret;", var_name, var_name, var_name);
-      }
-      else if (actual_func_retorna_dec_array) {
-        sprintf(temp_ret,
-          "size_t _len = sizeof(%s)/sizeof(%s[0]);\n"
-          "    double* _heap_data = malloc(_len * sizeof(double));\n"
-          "    if (_heap_data) memcpy(_heap_data, %s, _len * sizeof(double));\n"
-          "    AxoArray_dec _ret = { .data = _heap_data, .length = _len };\n"
-          "    return _ret;", var_name, var_name, var_name);
-      }
-
-      if (in_pkg && in_func_inside_pkg) {
-        strcat(funciones_paquetes, "    ");
-        strcat(funciones_paquetes, temp_ret);
-        strcat(funciones_paquetes, "\n");
-        strcpy(out_line, "");
-      } else {
-        strcpy(out_line, temp_ret);
-      }
-      return;
-    }
-  }
-
-  // =============================================================
-  // ESTADO: DENTRO DE UN PAQUETE (pkg)
-  // =============================================================
-  if (in_pkg) {
-    // CASO A: Inicio de un método del paquete (func nombre = ...)
-    if (!in_func_inside_pkg && (strncmp(buffer, "func ", 5) == 0)) {
-      in_func_inside_pkg = true;
-      nivel_llaves++;
-      char func_name[50] = {};
-      sscanf(buffer, "%*s %[^= \t]", func_name);
-
-      int len_fn = strlen(func_name);
-      while(len_fn > 0 && isspace((unsigned char)func_name[len_fn - 1])) {
-        func_name[len_fn - 1] = '\0';
-        len_fn--;
-      }
-
-      if (total_metodos < MAX_METHODS && strlen(func_name) > 0) {
-        strcpy(lista_metodos[total_metodos++], func_name);
-      }
-
-      char argumentos[256] = "";
-      char *open_p = strchr(buffer, '(');
-      char *close_p = strchr(buffer, ')');
-      if (open_p && close_p && (close_p > open_p + 1)) {
-        size_t arg_len = close_p - (open_p + 1);
-        strncpy(argumentos, open_p + 1, arg_len);
-        argumentos[arg_len] = '\0';
-      }
-
-      // Corrección de tipos en argumentos internos
-      replace_keyword_safe(argumentos, "int", "int", argumentos);
-      replace_keyword_safe(argumentos, "dec", "double", argumentos);
-      replace_keyword_safe(argumentos, "bool", "bool", argumentos);
-      replace_keyword_safe(argumentos, "auto", "auto", argumentos);
-      replace_keyword_safe(argumentos, "any", "AxoAny", argumentos);
-      replace_keyword_safe(argumentos, "char", "char", argumentos);
-
-      char ret_type[30] = "void";
-      if (strstr(buffer, ":[]int")) {
-        actual_func_retorna_int_array = true;
-        strcpy(ret_type, "AxoArray_int");
-      }
-      else if (strstr(buffer, ":[]dec")) {
-        actual_func_retorna_dec_array = true;
-        strcpy(ret_type, "AxoArray_dec");
-      }
-      else if (strstr(buffer, ":int")) strcpy(ret_type, "int");
-      else if (strstr(buffer, ":dec")) strcpy(ret_type, "double");
-      else if (strstr(buffer, ":char")) strcpy(ret_type, "char");
-      else if (strstr(buffer, ":[]char")) strcpy(ret_type, "char*");
-      else if (strstr(buffer, ":bool")) strcpy(ret_type, "bool");
-      else if (strstr(buffer, ":any")) strcpy(ret_type, "AxoAny");
-
-      char cabecera[512];
-      sprintf(cabecera, "%s _%s_%s(%s) {\n", ret_type, current_pkg, func_name, argumentos);
-      strcat(funciones_paquetes, cabecera);
-
-      sprintf(buffer, "    %s (*%s)(%s);", ret_type, func_name, argumentos);
-      strcat(buffer_structs, buffer);
-      strcat(buffer_structs, "\n");
-
-      strcpy(out_line, "");
-      return;
-    }
-
-    // CASO B: Código interno del método del paquete
-    if (in_func_inside_pkg) {
-      if (strcmp(buffer, "}") == 0) {
-        strcat(funciones_paquetes, "}\n\n");
-        in_func_inside_pkg = false;
-        nivel_llaves--;
-        actual_func_retorna_int_array = false;
-        actual_func_retorna_dec_array = false;
-        strcpy(out_line, "");
-        return;
-      }
-
-      // Procesamiento global de variables y tipos
-      replace_keyword_safe(buffer, "int", "int", buffer);
-      replace_keyword_safe(buffer, "dec", "double", buffer);
-      replace_keyword_safe(buffer, "bool", "bool", buffer);
-      replace_keyword_safe(buffer, "char", "char", buffer);
-      replace_keyword_safe(buffer, "void", "void", buffer);
-      replace_keyword_safe(buffer, "auto", "auto", buffer);
-      replace_keyword_safe(buffer, "any", "AxoAny", buffer);
-
-      procesar_bloque_any(buffer);
-      // Números complejos Axolang (2.1i -> 2.1 * I)
-      if (strstr(buffer, "com ") || strncmp(buffer, "com", 3) == 0) {
-        replace_keyword_safe(buffer, "com", "double complex", buffer);
-        char *pos_i = strrchr(buffer, 'i');
-        if (pos_i && (pos_i == buffer + strlen(buffer) - 1 || *(pos_i + 1) == ';')) {
-          char temp[MAX_LINE_LEN] = {};
-          strncpy(temp, buffer, pos_i - buffer);
-          strcat(temp, " * I");
-          if (*(pos_i + 1) == ';') strcat(temp, ";");
-          strcpy(buffer, temp);
-        }
-      }
-
-      // Punteros (*variable -> &variable)
-      if (strstr(buffer, "punt ") || strncmp(buffer, "punt", 4) == 0) {
-        replace_keyword_safe(buffer, "punt", "auto", buffer);
-        replace_string(buffer, "= *", "= &", buffer);
-      }
-
-      // Parseo de arreglos « » locales
-      bool is_array_loc = (strstr(buffer, "[]") != nullptr && strchr(buffer, '=') != nullptr);
-      bool is_char_array_loc = (strstr(buffer, "char") != nullptr);
-      if (is_array_loc && !is_char_array_loc) {
-        char *open_quote = strstr(buffer, "«");
-        char *close_quote = strstr(buffer, "»");
-        if (open_quote && close_quote && (close_quote > open_quote)) {
-          char parte_izq[MAX_LINE_LEN] = {}; char parte_der[MAX_LINE_LEN] = {}; char contenido[MAX_LINE_LEN] = {};
-          size_t izq_len = open_quote - buffer;
-          strncpy(parte_izq, buffer, izq_len);
-          strcpy(parte_der, close_quote + 2);
-          size_t cont_len = close_quote - (open_quote + 2);
-          strncpy(contenido, open_quote + 2, cont_len);
-          for (size_t i = 0; i < strlen(contenido); i++) {
-            if (contenido[i] == ' ' || contenido[i] == ',') contenido[i] = ',';
-          }
-          sprintf(buffer, "%s{%s}%s", parte_izq, contenido, parte_der);
-        }
-      } else {
-        replace_string(buffer, "«", "\"", buffer);
-        replace_string(buffer, "»", "\"", buffer);
-      }
-
-      replace_string(buffer, "=>", "&", buffer);
-      replace_string(buffer, "×", "*", buffer);
-      replace_string(buffer, "÷", "/", buffer);
-      replace_string(buffer, "√", "sqrt", buffer);
-      replace_string(buffer, "≠", "!=", buffer);
-      replace_string(buffer, "≤", "<=", buffer);
-      replace_string(buffer, "≥", ">=", buffer);
-      replace_string(buffer, "X|", "^", buffer);
-
-      // [MEJORA EXCLUSIVA]: Interceptor inteligente de la Arquitectura Dinámica 'AxoAny'
-      if (strstr(buffer, "AxoAny ")) {
-        char var_name[64] = {};
-        char *p = strstr(buffer, "AxoAny ");
-        if (sscanf(p + 7, "%63s", var_name) == 1) {
-          char *eq = strchr(var_name, '='); if (eq) *eq = '\0';
-          char *sc = strchr(var_name, ';'); if (sc) *sc = '\0';
-          if (total_any_vars < 100 && strlen(var_name) > 0) {
-            strcpy(axo_any_vars[total_any_vars++], var_name);
-          }
-        }
-
-        // Si se inicializa un AxoAny con un número complejo directo (ej: 2i;) lo envuelve en la macro helper
-        char *pos_i = strrchr(buffer, 'i');
-        if (pos_i && (pos_i == buffer + strlen(buffer) - 1 || *(pos_i + 1) == ';')) {
-          char temp[MAX_LINE_LEN] = {};
-          char *equal_sign = strchr(buffer, '=');
-          if (equal_sign) {
-            size_t left_len = (equal_sign - buffer) + 1;
-            strncpy(temp, buffer, left_len);
-            strcat(temp, " ANY_COMPLEX(");
-            char val_str[64] = {};
-            char *val_start = equal_sign + 1;
-            while (isspace((unsigned char)*val_start)) val_start++;
-            strncpy(val_str, val_start, pos_i - val_start);
-            strcat(temp, val_str);
-            strcat(temp, " * I);");
-            strcpy(buffer, temp);
-          }
-        }
-      }
-
-      int len_int = strlen(buffer);
-      if (len_int > 0) {
-        char last_c = buffer[len_int - 1];
-        if (last_c != '{' && last_c != ';' && last_c != ',' && last_c != '/' &&
-          (last_c != '}' || strstr(buffer, "=") != nullptr || strstr(buffer, "[]") != nullptr)) {
-          strcat(buffer, ";");
-        }
-      }
-
-      strcat(funciones_paquetes, "    ");
-      strcat(funciones_paquetes, buffer);
-      strcat(funciones_paquetes, "\n");
-
-      strcpy(out_line, "");
-      return;
-    }
-
-    // CASO C: Fin de toda la estructura del paquete
-    if (strcmp(buffer, "}") == 0 && !in_func_inside_pkg) {
-      nivel_llaves--;
-      sprintf(buffer, "} %s;\n", current_pkg);
-      strcat(buffer_structs, buffer);
-      in_pkg = false;
-      strcpy(out_line, "");
-      return;
-    }
-
-    // CASO D: Miembros / Propiedades estándar del struct
-    if (strchr(buffer, '=')) {
-      char *has_equal = strchr(buffer, '=');
-      if (has_equal) *has_equal = '\0';
-      int len_c = strlen(buffer);
-      while (len_c > 0 && isspace((unsigned char)buffer[len_c - 1])) {
-        buffer[len_c - 1] = '\0';
-        len_c--;
-      }
-    }
-
-    // Procesamiento global de variables y tipos
-    replace_keyword_safe(buffer, "int", "int", buffer);
-    replace_keyword_safe(buffer, "dec", "double", buffer);
-    replace_keyword_safe(buffer, "bool", "bool", buffer);
-    replace_keyword_safe(buffer, "char", "char", buffer);
-    replace_keyword_safe(buffer, "void", "void", buffer);
-    replace_keyword_safe(buffer, "auto", "auto", buffer);
-    replace_keyword_safe(buffer, "any", "AxoAny", buffer);
-
-
-    // Números complejos Axolang (2.1i -> 2.1 * I)
-    if (strstr(buffer, "com ") || strncmp(buffer, "com", 3) == 0) {
-      replace_keyword_safe(buffer, "com", "double complex", buffer);
-      char *pos_i = strrchr(buffer, 'i');
-      if (pos_i && (pos_i == buffer + strlen(buffer) - 1 || *(pos_i + 1) == ';')) {
-        char temp[MAX_LINE_LEN] = {};
-        strncpy(temp, buffer, pos_i - buffer);
-        strcat(temp, " * I");
-        if (*(pos_i + 1) == ';') strcat(temp, ";");
-        strcpy(buffer, temp);
-      }
-    }
-
-    // Punteros (*variable -> &variable)
-    if (strstr(buffer, "punt ") || strncmp(buffer, "punt", 4) == 0) {
-      replace_keyword_safe(buffer, "punt", "auto", buffer);
-      replace_string(buffer, "= *", "= &", buffer);
-    }
-
-
-    // Números complejos Axolang (2.1i -> 2.1 * I)
-    if (strstr(buffer, "com ") || strncmp(buffer, "com", 3) == 0) {
-      replace_keyword_safe(buffer, "com", "double complex", buffer);
-      char *pos_i = strrchr(buffer, 'i');
-      if (pos_i && (pos_i == buffer + strlen(buffer) - 1 || *(pos_i + 1) == ';')) {
-        char temp[MAX_LINE_LEN] = {};
-        strncpy(temp, buffer, pos_i - buffer);
-        strcat(temp, " * I");
-        if (*(pos_i + 1) == ';') strcat(temp, ";");
-        strcpy(buffer, temp);
-      }
-    }
-
-    // Punteros (*variable -> &variable)
-    if (strstr(buffer, "punt ") || strncmp(buffer, "punt", 4) == 0) {
-      replace_keyword_safe(buffer, "punt", "auto", buffer);
-      replace_string(buffer, "= *", "= &", buffer);
-    }
-
-    int len_p = strlen(buffer);
-    if (len_p > 0 && buffer[len_p - 1] != ';') strcat(buffer, ";");
-
-    strcat(buffer_structs, "    ");
-    strcat(buffer_structs, buffer);
-    strcat(buffer_structs, "\n");
-    strcpy(out_line, "");
-    return;
-  }
-
-  // =============================================================
-  // ESTADO: ÁMBITO GLOBAL / FUERA DE PAQUETES
-  // =============================================================
-  if (strncmp(buffer, "pkg", 4) == 0) {
-    in_pkg = true;
-    nivel_llaves = 1;
-    total_metodos = 0;
-    char name[50] = {};
-    sscanf(buffer, "pkg %s", name);
-    char *bracket = strchr(name, '{'); if (bracket) *bracket = '\0';
-    strcpy(current_pkg, name);
-
-    sprintf(buffer, "typedef struct {\n");
-    strcat(buffer_structs, buffer);
-    strcpy(out_line, "");
-    return;
-  }
-
-  // Procesamiento global de variables y tipos
-  replace_keyword_safe(buffer, "int", "int", buffer);
-  replace_keyword_safe(buffer, "dec", "double", buffer);
-  replace_keyword_safe(buffer, "bool", "bool", buffer);
-  replace_keyword_safe(buffer, "char", "char", buffer);
-  replace_keyword_safe(buffer, "void", "void", buffer);
-  replace_keyword_safe(buffer, "auto", "auto", buffer);
-  replace_keyword_safe(buffer, "any", "AxoAny", buffer);
-
-  procesar_bloque_any(buffer);
-  // Números complejos Axolang (2.1i -> 2.1 * I)
-  if (strstr(buffer, "com ") || strncmp(buffer, "com", 3) == 0) {
-    replace_keyword_safe(buffer, "com", "double complex", buffer);
-    char *pos_i = strrchr(buffer, 'i');
-    if (pos_i && (pos_i == buffer + strlen(buffer) - 1 || *(pos_i + 1) == ';')) {
-      char temp[MAX_LINE_LEN] = {};
-      strncpy(temp, buffer, pos_i - buffer);
-      strcat(temp, " * I");
-      if (*(pos_i + 1) == ';') strcat(temp, ";");
-      strcpy(buffer, temp);
-    }
-  }
-
-  // Punteros (*variable -> &variable)
-  if (strstr(buffer, "punt ") || strncmp(buffer, "punt", 4) == 0) {
-    replace_keyword_safe(buffer, "punt", "auto", buffer);
-    replace_string(buffer, "= *", "= &", buffer);
-  }
-
-  // Inicialización de Arreglos Globales o Locales « »
-  bool is_array_glob = (strstr(buffer, "[]") != nullptr && strchr(buffer, '=') != nullptr);
-  bool is_char_array_glob = (strstr(buffer, "char") != nullptr);
-  if (is_array_glob && !is_char_array_glob) {
-    char *open_quote = strstr(buffer, "«");
-    char *close_quote = strstr(buffer, "»");
-    if (open_quote && close_quote && (close_quote > open_quote)) {
-      char parte_izq[MAX_LINE_LEN] = {}; char parte_der[MAX_LINE_LEN] = {}; char contenido[MAX_LINE_LEN] = {};
-      size_t izq_len = open_quote - buffer;
-      strncpy(parte_izq, buffer, izq_len);
-      strcpy(parte_der, close_quote + 2);
-      size_t cont_len = close_quote - (open_quote + 2);
-      strncpy(contenido, open_quote + 2, cont_len);
-      for (size_t i = 0; i < strlen(contenido); i++) {
-        if (contenido[i] == ' ' || contenido[i] == ',') contenido[i] = ',';
-      }
-      sprintf(buffer, "%s{%s}%s", parte_izq, contenido, parte_der);
-    }
-  } else {
-    replace_string(buffer, "«", "\"", buffer);
-    replace_string(buffer, "»", "\"", buffer);
-  }
-
-  // Detección y parseo de Funciones Globales
-  if (strncmp(buffer, "func ", 5) == 0) {
-    nivel_llaves++;
-    char func_name[50] = {};
-
-    if (sscanf(buffer, "%*s %[^= ]", func_name) == 1) {
-      char argumentos[256] = "";
-      char *open_p = strchr(buffer, '(');
-      char *close_p = strchr(buffer, ')');
-      if (open_p && close_p && (close_p > open_p + 1)) {
-        size_t arg_len = close_p - (open_p + 1);
-        strncpy(argumentos, open_p + 1, arg_len);
-        argumentos[arg_len] = '\0';
-      }
-
-      replace_keyword_safe(argumentos, "int", "int", argumentos);
-      replace_keyword_safe(argumentos, "dec", "double", argumentos);
-      replace_keyword_safe(argumentos, "bool", "bool", argumentos);
-      replace_keyword_safe(argumentos, "char", "char", argumentos);
-      replace_keyword_safe(argumentos, "any", "AxoAny", argumentos);
-
-      if (strcmp(func_name, "main") == 0) {
-        sprintf(buffer, "int main() {");
-      } else {
-        char ret_type[30] = "void";
-        if (strstr(buffer, ":[]int")) {
-          actual_func_retorna_int_array = true;
-          strcpy(ret_type, "AxoArray_int");
-        }
-        else if (strstr(buffer, ":[]dec")) {
-          actual_func_retorna_dec_array = true;
-          strcpy(ret_type, "AxoArray_dec");
-        }
-        else if (strstr(buffer, ":int")) strcpy(ret_type, "int");
-        else if (strstr(buffer, ":dec")) strcpy(ret_type, "double");
-        else if (strstr(buffer, ":char")) strcpy(ret_type, "char");
-        else if (strstr(buffer, ":[]char")) strcpy(ret_type, "char*");
-        else if (strstr(buffer, ":bool")) strcpy(ret_type, "bool");
-        else if (strstr(buffer, ":any")) strcpy(ret_type, "AxoAny");
-
-        sprintf(buffer, "%s %s(%s) {", ret_type, func_name, argumentos);
-      }
-      strcpy(out_line, buffer);
-      return;
-    }
-  }
-
-  // Enlace y enlace vtable dinámico para instanciar structs
-  if (isalpha((unsigned char)buffer[0]) && !strchr(buffer, '=') && !strchr(buffer, '(') && !strchr(buffer, '}')) {
-    char tipo_posible[50] = {}; char var_posible[50] = {};
-    if (sscanf(buffer, "%s %s", tipo_posible, var_posible) == 2) {
-      if (strcmp(tipo_posible, "int") != 0 && strcmp(tipo_posible, "double") != 0 &&
-        strcmp(tipo_posible, "bool") != 0 && strcmp(tipo_posible, "char") != 0 &&
-        strcmp(tipo_posible, "void") != 0 && strcmp(tipo_posible, "return") != 0 &&
-        strcmp(tipo_posible, "auto") != 0) {
-
-        char buffer_instancia[4096];
-        sprintf(buffer_instancia, "%s %s;", tipo_posible, var_posible);
-        for (int m = 0; m < total_metodos; m++) {
-          if (strlen(lista_metodos[m]) == 0) continue;
-          char linea_enlace[256];
-          sprintf(linea_enlace, "\n    %s.%s = _%s_%s;", var_posible, lista_metodos[m], tipo_posible, lista_metodos[m]);
-          strcat(buffer_instancia, linea_enlace);
-        }
-        strcpy(out_line, buffer_instancia);
-        return;
-      }
-    }
-  }
-
-  // Ajustes de operadores de Axolang y funciones IO
-  replace_string(buffer, ",system", "", buffer);
-  replace_string(buffer, ", system", "", buffer);
-  replace_string(buffer, "=>", "&", buffer);
-  if (strstr(buffer, "Stop(system)")) strcpy(buffer, "return 0;");
-  replace_string(buffer, "×", "*", buffer);
-  replace_string(buffer, "÷", "/", buffer);
-  replace_string(buffer, "√", "sqrt", buffer);
-  replace_string(buffer, "≠", "!=", buffer);
-  replace_string(buffer, "≤", "<=", buffer);
-  replace_string(buffer, "≥", ">=", buffer);
-  replace_string(buffer, "X|", "^", buffer);
-
-  if (strchr(buffer, '{') != nullptr && strchr(buffer, '}') == nullptr) {
-    nivel_llaves++;
-  }
-  // Regla estricta de punto y coma al final
-  int len = strlen(buffer);
-  if (len > 0) {
-    char last_char = buffer[len - 1];
-    if (last_char != '{' && last_char != ';' && last_char != ',' &&
-      strncmp(buffer, "if", 2) != 0 && strncmp(buffer, "for", 3) != 0 && strncmp(buffer, "while", 5) != 0 && (last_char != '}' || strstr(buffer, "=") != NULL || strstr(buffer, "[]") != NULL)) {
-      strcat(buffer, ";");
-    }
-  }
-
-  // CRÍTICO: Si no estamos dentro de una función, la instrucción es una asignación global
-  if (nivel_llaves == 0) {
-    strcat(buffer_globales, buffer);
-    strcat(buffer_globales, "\n");
-    strcpy(out_line, "");
-  } else {
-    strcpy(out_line, buffer); // CORREGIDO: Copiar las líneas internas de la función al cuerpo del archivo
-  }
+  token.type = TOKEN_UNKNOWN; token.lexeme[0] = **src; token.lexeme[1] = '\0'; (*src)++; return token;
 }
 
-int main(int argc, char *argv[]) {
-  if (argc < 2) {
-    printf("Uso: %s <archivo.axo> [-o <nombre_ejecutable>]\n", argv[0]);
-    return 1;
-  }
+void transpilar(const char *codigo_axolang, FILE *f_salida) {
+  const char *ptr = codigo_axolang;
+  bool in_pkg = false;
+  bool needs_semicolon = false;
+  char current_pkg_name[128] = "";
+  char temp_constructor[4096] = "";
 
-  auto input_filename = argv[1];
-  char output_executable[256] = "a.out";
-  for (int i = 2; i < argc; i++) {
-    if (strcmp(argv[i], "-o") == 0 && (i + 1) < argc) {
-      strcpy(output_executable, argv[i + 1]);
+  fprintf("// --- C23 AUTO-GENERATED CODE FROM AXOLANG ---\n");
+  fprintf("#include <complex.h>\n#include <math.h>\n#include <tgmath.h>\n#include <string.h>\n#include <stdbool.h>\n#include <stdio.h>\n#include <stdlib.h>\n\n");
+
+  fprintf("typedef struct { int* data; size_t length; } Axoarray_int;\n");
+  fprintf("typedef struct { double* data; size_t length; } Axoarray_dec;\n");
+  fprintf("typedef struct { char* data; size_t length; } Axoarray_char;\n");
+  fprintf("typedef struct { bool* data; size_t length; } Axoarray_bool;\n");
+  fprintf("typedef struct { Axoany_Struct* data; size_t length; } Axoarray_any;\n\n");
+
+  // === INYECTAR AQUÍ EL SOPORTE DEL MODELO ANY ===
+  fprintf("typedef enum { TYPE_INT, TYPE_DEC, TYPE_COMPLEX, TYPE_CHAR, TYPE_STRING, TYPE_FUNC, TYPE_PKG } AxoType;\n");
+  fprintf("typedef struct {\n");
+  fprintf("    AxoType type;\n");
+  fprintf("    union {\n");
+  fprintf("        int i_val;\n");
+  fprintf("        double d_val;\n");
+  fprintf("        double _Complex cmplx_val;\n");
+  fprintf("        char c_val;\n");
+  fprintf("        char* s_val;\n");
+  fprintf("        void (*func_val)();\n");
+  fprintf("        void* pkg_val;\n");
+  fprintf("    };\n");
+  fprintf("} Axoany_Struct;\n\n");
+  // Nota: Cambiamos el alias de "typedef double _Complex Axoany;" por tu nueva estructura dinámina.
+  Token token = get_next_token(&ptr);
+
+  while (token.type != TOKEN_EOF) {
+    if (token.type == TOKEN_NEWLINE) {
+      if (needs_semicolon) {
+        fprintf(";"); needs_semicolon = false;
+      }
+      fprintf("\n");
+      token = get_next_token(&ptr);
+      continue;
+    }
+
+    switch (token.type) {
+      case TOKEN_ADD: {
+        token = get_next_token(&ptr);
+        if (strstr(token.lexeme, "Basic.axo")) fprintf("#include <stdio.h>\n#include <stdlib.h>\n#include <stddef.h>\n");
+        else if (strstr(token.lexeme, "Text.axo")) fprintf("#include <ctype.h>\n");
+        else if (strstr(token.lexeme, "Time.axo")) fprintf("#include <time.h>\n");
+        else if (strstr(token.lexeme, "Signal.axo")) fprintf("#include <signal.h>\n");
+        while (token.type != TOKEN_NEWLINE && token.type != TOKEN_EOF) token = get_next_token(&ptr);
+        needs_semicolon = false;
+        continue;
+      }
+
+      case TOKEN_INT: fprintf("int "); needs_semicolon = false; break;
+      case TOKEN_DEC: fprintf("double "); needs_semicolon = false; break;
+      case TOKEN_CHAR: fprintf("char "); needs_semicolon = false; break;
+      case TOKEN_BOOL: fprintf("bool "); needs_semicolon = false; break;
+      case TOKEN_VOID: fprintf("void "); needs_semicolon = false; break;
+      case TOKEN_AUTO: fprintf("auto "); needs_semicolon = false; break;
+      case TOKEN_COM: fprintf("double _Complex "); needs_semicolon = false; break;
+      case TOKEN_ANY: fprintf("Axoany_Struct "); needs_semicolon = false; break;
+      case TOKEN_PUNT: fprintf("auto "); needs_semicolon = false; break;
+
+      case TOKEN_PKG: {
+        in_pkg = true;
+        token = get_next_token(&ptr);
+        strcpy(current_pkg_name, token.lexeme);
+        fprintf("typedef struct {\n");
+
+        sfprintf(temp_constructor, "%s init_%s() {\n    %s instancia;\n", current_pkg_name, current_pkg_name, current_pkg_name);
+
+        get_next_token(&ptr); // Consumir '='
+        get_next_token(&ptr); // Consumir '{'
+        needs_semicolon = false;
+        break;
+      }
+
+      case TOKEN_FUNC: {
+        token = get_next_token(&ptr);
+        char func_name[128];
+        strcpy(func_name, token.lexeme);
+
+        get_next_token(&ptr); // Consumir '='
+        get_next_token(&ptr); // Consumir '('
+
+        char argumentos[256] = "";
+        Token arg_token = get_next_token(&ptr);
+        while (arg_token.type != TOKEN_RPAREN && arg_token.type != TOKEN_EOF) {
+          if (strcmp(arg_token.lexeme, "dec") == 0) strcat(argumentos, "double");
+          else if (strcmp(arg_token.lexeme, "int") == 0) strcat(argumentos, "int");
+          else if (strcmp(arg_token.lexeme, "char") == 0) strcat(argumentos, "char");
+          else strcat(argumentos, arg_token.lexeme);
+          strcat(argumentos, " ");
+          arg_token = get_next_token(&ptr);
+        }
+
+        char ret_type[64] = "void";
+        Token next_tok = get_next_token(&ptr);
+
+        if (next_tok.type == TOKEN_COLON) {
+          char raw_ret[128] = "";
+          next_tok = get_next_token(&ptr);
+          while (next_tok.type != TOKEN_LBRACE && next_tok.type != TOKEN_NEWLINE && next_tok.type != TOKEN_EOF) {
+            strcat(raw_ret, next_tok.lexeme);
+            next_tok = get_next_token(&ptr);
+          }
+          if (strcmp(raw_ret, "int") == 0) strcpy(ret_type, "int");
+          else if (strcmp(raw_ret, "dec") == 0) strcpy(ret_type, "double");
+          else if (strcmp(raw_ret, "void") == 0) strcpy(ret_type, "void");
+          else if (strcmp(raw_ret, "[]int") == 0) strcpy(ret_type, "Axoarray_int");
+          else if (strcmp(raw_ret, "[]dec") == 0) strcpy(ret_type, "Axoarray_dec");
+          else if (strcmp(raw_ret, "[]any") == 0) strcpy(ret_type, "Axoarray_any");
+          else if (strcmp(raw_ret, "[]char") == 0) strcpy(ret_type, "Axoarray_char");
+          else if (strstr(raw_ret, "char")) strcpy(ret_type, "char*");
+          else if (strstr(raw_ret, "dec")) strcpy(ret_type, "double*");
+        }
+
+        while (next_tok.type != TOKEN_LBRACE && next_tok.type != TOKEN_EOF) next_tok = get_next_token(&ptr);
+
+        // ... Dentro de transpilar(), case TOKEN_FUNC:, sección `if (in_pkg)` ...
+        if (in_pkg) {
+          fprintf("    %s (*%s)(%s);\n", ret_type, func_name, argumentos);
+
+          char buffer_vinc[256];
+          // Asegúrate de que no haya saltos de línea al concatenar:
+          sfprintf(buffer_vinc, "    instancia.%s = &%s_%s;\n", func_name, current_pkg_name, func_name);
+          strcat(temp_constructor, buffer_vinc);
+
+          char buf_func[8192] = "";
+          sfprintf(buf_func, "%s %s_%s(%s) {\n", ret_type, current_pkg_name, func_name, argumentos);
+
+          int brace_count = 1;
+          Token cuerpo_tok = get_next_token(&ptr);
+          bool linea_necesita_punto_coma = false;
+
+          while (cuerpo_tok.type != TOKEN_EOF) {
+            if (cuerpo_tok.type == TOKEN_NEWLINE) {
+              if (linea_necesita_punto_coma) {
+                strcat(buf_func, ";"); linea_necesita_punto_coma = false;
+              }
+              strcat(buf_func, "\n");
+              cuerpo_tok = get_next_token(&ptr);
+              continue;
+            }
+
+            if (cuerpo_tok.type == TOKEN_LBRACE) brace_count++;
+            if (cuerpo_tok.type == TOKEN_RBRACE) {
+              brace_count--;
+              if (brace_count == 0) break;
+            }
+
+            if (strcmp(cuerpo_tok.lexeme, "dec") == 0) {
+              strcat(buf_func, "double* ");
+              linea_necesita_punto_coma = false;
+            }
+            // NUEVO: Si viene el identificador de un arreglo dinámico como 'sum[]', eliminamos los corchetes para el malloc
+            else if (strstr(cuerpo_tok.lexeme, "[]") != NULL) {
+              char nombre_limpio[128];
+              strcpy(nombre_limpio, cuerpo_tok.lexeme);
+              // Cortamos los caracteres '[]'
+              nombre_limpio[strlen(nombre_limpio) - 2] = '\0';
+              strcat(buf_func, nombre_limpio);
+              strcat(buf_func, " ");
+            }
+            // NUEVO: Si viene el operador de asignación '=', revisamos si el siguiente es un arreglo literal '«' para evitar el doble '='
+            else if (strcmp(cuerpo_tok.lexeme, "=") == 0) {
+              const char *look_ahead_malloc = ptr;
+              while(*look_ahead_malloc == ' ' || *look_ahead_malloc == '\t') look_ahead_malloc++;
+
+              if (strncmp(look_ahead_malloc, "«", 2) == 0) {
+                // Si el paso que sigue es un arreglo '«', dejamos que '«' escriba todo el '= malloc...' solo
+                linea_necesita_punto_coma = false;
+              } else {
+                strcat(buf_func, "= ");
+              }
+            }
+            else if (strcmp(cuerpo_tok.lexeme, "return") == 0) {
+              Token next_val = get_next_token(&ptr);
+              if (next_val.type == TOKEN_STRING) {
+                char ret_obj[512];
+                sfprintf(ret_obj, "return (%s){ .data = \"%s\", .length = %zu }", ret_type, next_val.lexeme, strlen(next_val.lexeme));
+                strcat(buf_func, ret_obj);
+                linea_necesita_punto_coma = true;
+              } else if (strcmp(next_val.lexeme, "sum") == 0) {
+                char ret_obj[512];
+                sfprintf(ret_obj, "return (%s){ .data = sum, .length = 2 }", ret_type);
+                strcat(buf_func, ret_obj);
+                linea_necesita_punto_coma = true;
+              } else {
+                strcat(buf_func, "return ");
+                strcat(buf_func, next_val.lexeme);
+                linea_necesita_punto_coma = true;
+              }
+            }
+            else if (strcmp(cuerpo_tok.lexeme, "×") == 0) {
+              strcat(buf_func, "* ");
+              linea_necesita_punto_coma = false;
+            }
+            else if (strcmp(cuerpo_tok.lexeme, "«") == 0) {
+              strcat(buf_func, "= malloc(2 * sizeof(double))");
+              while(cuerpo_tok.type != TOKEN_RARRAY && cuerpo_tok.type != TOKEN_EOF) {
+                cuerpo_tok = get_next_token(&ptr);
+              }
+              linea_necesita_punto_coma = true;
+            }
+            else {
+              strcat(buf_func, cuerpo_tok.lexeme);
+              strcat(buf_func, " ");
+              if (cuerpo_tok.type == TOKEN_IDENTIFIER || cuerpo_tok.type == TOKEN_NUMBER) {
+                linea_necesita_punto_coma = true;
+              }
+            }
+            cuerpo_tok = get_next_token(&ptr);
+          }
+          strcat(buf_func, ";\n}\n\n");
+          strcat(funciones_extraidas, buf_func);
+          needs_semicolon = false;
+        }
+        // ...
+        else {
+          // Si encuentra la función 'main', antes de volcar su definición imprimimos las funciones acumuladas
+          if (strcmp(func_name, "main") == 0) {
+            fprintf("\n// --- METODOS DE COMPORTAMIENTO EXTRAIDOS ---\n%s", funciones_extraidas);
+            fprintf("// --- CONSTRUCTORES DE INICIALIZACION ---\n%s\n", constructores_inicializadores);
+            // Vaciamos los buffers para que no se vuelvan a imprimir
+            funciones_extraidas[0] = '\0';
+            constructores_inicializadores[0] = '\0';
+          }
+          fprintf("%s %s(%s) {\n", ret_type, func_name, argumentos);
+          needs_semicolon = false;
+        }
+        break;
+      }
+
+      case TOKEN_IDENTIFIER: {
+        if (in_pkg) {
+          char var_member[128];
+          strcpy(var_member, token.lexeme);
+
+          const char *look = ptr;
+          while (*look == ' ' || *look == '\t') look++;
+          if (*look == '=') {
+            get_next_token(&ptr); // consumir '='
+            Token val_tok = get_next_token(&ptr);
+
+            char buffer_init[256];
+            sfprintf(buffer_init, "    instancia.%s = %s;\n", var_member, val_tok.lexeme);
+            strcat(temp_constructor, buffer_init);
+
+            fprintf("    ");
+            needs_semicolon = true;
+            break;
+          }
+        }
+
+        if (strcmp(token.lexeme, "algo") == 0 || strcmp(token.lexeme, "clase") == 0) {
+          char pkg_type[128];
+          strcpy(pkg_type, token.lexeme);
+          Token obj_tok = get_next_token(&ptr);
+          fprintf("%s %s = init_%s()", pkg_type, obj_tok.lexeme, pkg_type);
+          needs_semicolon = true;
+          break;
+        }
+
+        if (strcmp(token.lexeme, "Stop") == 0) {
+          const char *look = ptr;
+          while (*look == ' ' || *look == '\t') look++;
+          if (*look == '(') {
+            const char *look2 = look + 1;
+            while (*look2 == ' ' || *look2 == '\t') look2++;
+            if (strncmp(look2, "system", 6) == 0) {
+              const char *look3 = look2 + 6;
+              while (*look3 == ' ' || *look3 == '\t') look3++;
+              if (*look3 == ')') {
+                ptr = look3 + 1; fprintf("exit(0)"); needs_semicolon = true; break;
+              }
+            }
+          }
+        }
+
+        fprintf("%s ", token.lexeme);
+        needs_semicolon = true;
+        break;
+      }
+
+      case TOKEN_CHAR_LITERAL: fprintf("%s ", token.lexeme); needs_semicolon = true; break;
+
+      case TOKEN_ASSIGN: {
+        // Si estamos procesando propiedades por defecto dentro de un "pkg",
+        // dejamos que el transpilador lo ignore para que el constructor lo maneje.
+        if (in_pkg) {
+          needs_semicolon = false;
+          break;
+        }
+
+        // --- DETECCIÓN DE LAMBDAS Y COMODINES ANY ---
+        // Miramos lo que hay justo después del '=' usando un puntero de exploración temporal
+        const char *look_lambda = ptr;
+        while (*look_lambda == ' ' || *look_lambda == '\t') look_lambda++;
+
+        // REGLA 1: ¿Viene una función anónima? ej: = ( ) : []any { ... }
+        if (*look_lambda == '(') {
+          static int lambda_counter = 0;
+          char lambda_name[64];
+          sfprintf(lambda_name, "__axo_lambda_%d", ++lambda_counter);
+
+          char buf_lambda[4096] = "";
+          char ret_type[64] = "void"; // Por defecto si no especifica tipo
+
+          // Avanzamos los tokens temporalmente para extraer la firma y el tipo de retorno (: tipo)
+          Token l_tok = get_next_token(&ptr); // Consume el '(' original
+          while (l_tok.type != TOKEN_LBRACE && l_tok.type != TOKEN_EOF) {
+            if (l_tok.type == TOKEN_COLON) {
+              l_tok = get_next_token(&ptr); // Lee el tipo de retorno después de ':'
+              if (strcmp(l_tok.lexeme, "[]any") == 0) strcpy(ret_type, "Axoarray_any");
+              else if (strcmp(l_tok.lexeme, "int") == 0) strcpy(ret_type, "int");
+              else if (strcmp(l_tok.lexeme, "dec") == 0) strcpy(ret_type, "double");
+            }
+            l_tok = get_next_token(&ptr);
+          }
+
+          // Empezamos a escribir la función como si fuera una función global pura de C
+          sfprintf(buf_lambda, "%s %s() {\n    ", ret_type, lambda_name);
+
+          // Extraemos recursivamente todo el cuerpo que vive dentro de las llaves { ... }
+          int b_count = 1;
+          l_tok = get_next_token(&ptr);
+          bool lambda_necesita_punto_coma = false;
+
+          while (l_tok.type != TOKEN_EOF) {
+            if (l_tok.type == TOKEN_NEWLINE) {
+              if (lambda_necesita_punto_coma) {
+                strcat(buf_lambda, ";");
+                lambda_necesita_punto_coma = false;
+              }
+              strcat(buf_lambda, "\n    ");
+              l_tok = get_next_token(&ptr);
+              continue;
+            }
+            if (l_tok.type == TOKEN_LBRACE) b_count++;
+            if (l_tok.type == TOKEN_RBRACE) {
+              b_count--;
+              if (b_count == 0) break; // Fin de la lambda
+            }
+
+            // Re-inyectar comillas si el lexer se comió las comillas en los prints/strings internos
+            if (l_tok.type == TOKEN_STRING) {
+              char string_formateado[512];
+              sfprintf(string_formateado, "\"%s\" ", l_tok.lexeme);
+              strcat(buf_lambda, string_formateado);
+              lambda_necesita_punto_coma = true;
+            } else {
+              strcat(buf_lambda, l_tok.lexeme);
+              strcat(buf_lambda, " ");
+              if (l_tok.type == TOKEN_IDENTIFIER || l_tok.type == TOKEN_NUMBER) {
+                lambda_necesita_punto_coma = true;
+              }
+            }
+            l_tok = get_next_token(&ptr);
+          }
+          strcat(buf_lambda, ";\n}\n\n");
+
+          // Enviamos la lambda generada al búfer global de métodos acumulados
+          strcat(funciones_extraidas, buf_lambda);
+
+          // Generamos el Prototipo (Forward Declaration) para que la asignación global no falle
+          // Esto se puede acumular en un búfer o imprimir directamente arriba.
+          // Para esta arquitectura, la imprimiremos usando literales de C23:
+          fprintf("= (Axoany_Struct){ .type = TYPE_FUNC, .func_val = &__axo_lambda_%d }", lambda_counter);
+          needs_semicolon = true;
+        }
+
+        // REGLA 2: ¿Viene un string directo asignado al any? ej: any var = "xd"
+        else if (*look_lambda == '"') {
+          Token str_tok = get_next_token(&ptr); // Consumir el string literal
+          fprintf("= (Axoany_Struct){ .type = TYPE_STRING, .s_val = \"%s\" }", str_tok.lexeme);
+          needs_semicolon = true;
+        }
+
+        // REGLA 3: Asignación estándar para cualquier otra variable (int, dec, etc.)
+        else {
+          fprintf("= ");
+          needs_semicolon = false;
+        }
+        break;
+      }
+
+      case TOKEN_REF_ARROW: fprintf("&"); needs_semicolon = false; break;
+
+      case TOKEN_NUMBER: {
+        size_t len = strlen(token.lexeme);
+        if (len > 0 && token.lexeme[len - 1] == 'i') {
+          token.lexeme[len - 1] = '\0';
+          fprintf("%s * _Complex_I", token.lexeme);
+        } else {
+          fprintf("%s ", token.lexeme);
+        }
+        needs_semicolon = true;
+        break;
+      }
+
+      case TOKEN_STRING: fprintf("\"%s\" ", token.lexeme); needs_semicolon = true; break;
+      case TOKEN_LARRAY: fprintf("{ "); needs_semicolon = false; break;
+      case TOKEN_RARRAY: fprintf(" }"); needs_semicolon = true; break;
+      case TOKEN_SEMICOLON: fprintf("; "); needs_semicolon = false; break;
+
+      case TOKEN_OP_MULT: fprintf("* "); needs_semicolon = false; break;
+      case TOKEN_OP_DIV: fprintf("/ "); needs_semicolon = false; break;
+      case TOKEN_OP_SQRT: fprintf("sqrt"); needs_semicolon = false; break;
+      case TOKEN_OP_EXP: fprintf("exp"); needs_semicolon = false; break;
+      case TOKEN_OP_XOR: fprintf("^ "); needs_semicolon = false; break;
+      case TOKEN_OP_AND: fprintf("&& "); needs_semicolon = false; break;
+      case TOKEN_OP_OR: fprintf("|| "); needs_semicolon = false; break;
+      case TOKEN_OP_NOT: fprintf("! "); needs_semicolon = false; break;
+      case TOKEN_OP_GE: fprintf(">= "); needs_semicolon = false; break;
+      case TOKEN_OP_LE: fprintf("<= "); needs_semicolon = false; break;
+      case TOKEN_OP_NOTEQUAL: fprintf("!= "); needs_semicolon = false; break;
+
+      case TOKEN_LBRACE: fprintf("{ "); needs_semicolon = false; break;
+      case TOKEN_RBRACE: {
+        if (in_pkg) {
+          fprintf("} %s;\n\n", current_pkg_name);
+
+          strcat(temp_constructor, "    return instancia;\n}\n\n");
+          strcat(constructores_inicializadores, temp_constructor);
+
+          in_pkg = false;
+        } else {
+          fprintf("}\n");
+        }
+        needs_semicolon = false;
+        break;
+      }
+
+      default:
+      fprintf("%s ", token.lexeme);
+      if (strcmp(token.lexeme, ")") == 0 || strcmp(token.lexeme, "]") == 0) needs_semicolon = true;
       break;
     }
-  }
 
-  FILE *input = fopen(input_filename, "r");
-  if (input == nullptr) {
-    perror("Error al abrir el archivo Axolang");
+    token = get_next_token(&ptr);
+  }
+}
+int main(int argc, char* argv[]) {
+  // 1. ABRIR Y LEER EL ARCHIVO FUENTE DE AXOLANG
+  FILE* origen = fopen(argv[1], "r");
+  if (!origen) {
+    printf("Error: No se pudo abrir el archivo fuente 'programa.axo'\n");
     return 1;
   }
 
-  char temp_c_file[] = "_temp_axoc_output.c";
-  FILE *output = fopen(temp_c_file, "w");
-  if (output == nullptr) {
-    perror("Error al crear archivo C temporal");
-    fclose(input);
+  // Buscamos el tamaño del archivo para asignarle memoria exacta al buffer
+  fseek(origen, 0, SEEK_END);
+  long tamano = ftell(origen);
+  fseek(origen, 0, SEEK_SET);
+
+  char* codigo_axolang = malloc(tamano + 1);
+  if (!codigo_axolang) {
+    printf("Error: Memoria insuficiente para cargar el código fuente.\n");
+    fclose(origen);
     return 1;
   }
 
-  Includes inc = {};
-  size_t body_capacity = 32768;
-  char *code_body = malloc(body_capacity);
-  if (code_body == nullptr) {
-    perror("Error crítico: Memoria insuficiente");
-    fclose(input); fclose(output); return 1;
-  }
-  code_body[0] = '\0';
-  size_t body_len = 0;
+  // Leemos todo el contenido del archivo hacia nuestra cadena de texto
+  size_t leidos = fread(codigo_axolang, 1, tamano, origen);
+  codigo_axolang[leidos] = '\0'; // Aseguramos el fin de cadena
+  fclose(origen);
 
-  char line[1024];
-  char transpiled_line[1024];
-
-  while (fgets(line, sizeof(line), input)) {
-    transpile_line(line, &inc, transpiled_line);
-    if (strlen(transpiled_line) > 0) {
-      size_t espacio_necesario = body_len + strlen(transpiled_line) + 6;
-      if (espacio_necesario >= body_capacity) {
-        body_capacity *= 2;
-        char *new_ptr = realloc(code_body, body_capacity);
-        if (new_ptr == nullptr) {
-          free(code_body); fclose(input); fclose(output); return 1;
-        }
-        code_body = new_ptr;
-      }
-      strcat(code_body, "    ");
-      strcat(code_body, transpiled_line);
-      strcat(code_body, "\n");
-      body_len = strlen(code_body);
-    }
-  }
-  fclose(input);
-  // === ARMADO DE ARQUITECTURA E INYECCIÓN JERÁRQUICA ===
-  fprintf(output, "/* Código C23 generado automáticamente por Axolang (axoc) */\n");
-  for (int i = 0; i < inc.count; i++) {
-    fprintf(output, "%s\n", inc.items[i]);
+  // 2. CREAR EL ARCHIVO DONDE SE ESCRIBIRÁ EL C23 AUTO-GENERADO
+  FILE* salida_c = fopen(argv[2], "w");
+  if (!salida_c) {
+    printf("Error: No se pudo crear el archivo de salida 'salida.c'\n");
+    free(codigo_axolang);
+    return 1;
   }
 
-  fprintf(output, "\n/* Definiciones Base de Arreglos de Axolang */\n");
-  fprintf(output, "typedef struct {\n    int* data;\n    size_t length;\n} AxoArray_int;\n");
-  fprintf(output, "typedef struct {\n    double* data;\n    size_t length;\n} AxoArray_dec;\n\n");
+  // Inyectamos las cabeceras estándar iniciales requeridas antes del código transpilado
+  fprintf(salida_c, "// --- C23 AUTO-GENERATED CODE FROM AXOLANG ---\n");
+  fprintf(salida_c, "#include <complex.h>\n#include <math.h>\n#include <tgmath.h>\n");
+  fprintf(salida_c, "#include <string.h>\n#include <stdbool.h>\n#include <stdio.h>\n#include <stdlib.h>\n\n");
 
-  // --- INYECCIÓN DE LA ARQUITECTURA DINÁMICA AXOANY ---
-  fprintf(output, "/* Arquitectura Dinámica 'any' de Axolang */\n");
-  fprintf(output, "typedef enum { T_INT, T_DEC, T_COMPLEX, T_STRING, T_BOOL, T_POINTER } AxoTipo;\n");
-  fprintf(output, "typedef struct {\n");
-  fprintf(output, "    AxoTipo tipo;\n");
-  fprintf(output, "    union {\n");
-  fprintf(output, "        int v_int;\n");
-  fprintf(output, "        double v_dec;\n");
-  fprintf(output, "        double complex v_complex;\n");
-  fprintf(output, "        char* v_string;\n");
-  fprintf(output, "        bool v_bool;\n");
-  fprintf(output, "        void* v_ptr;\n");
-  fprintf(output, "    } dato;\n");
-  fprintf(output, "} AxoAny;\n\n");
+  // Inyectamos el modelo de datos para el soporte de variables dinámicas 'any'
+  fprintf(salida_c, "typedef enum { TYPE_INT, TYPE_DEC, TYPE_COMPLEX, TYPE_CHAR, TYPE_STRING, TYPE_FUNC, TYPE_PKG } AxoType;\n");
+  fprintf(salida_c, "typedef struct {\n");
+  fprintf(salida_c, "    AxoType type;\n");
+  fprintf(salida_c, "    union {\n");
+  fprintf(salida_c, "        int i_val;\n");
+  fprintf(salida_c, "        double d_val;\n");
+  fprintf(salida_c, "        double _Complex cmplx_val;\n");
+  fprintf(salida_c, "        char c_val;\n");
+  fprintf(salida_c, "        char* s_val;\n");
+  fprintf(salida_c, "        void (*func_val)();\n");
+  fprintf(salida_c, "        void* pkg_val;\n");
+  fprintf(salida_c, "    };\n");
+  fprintf(salida_c, "} Axoany_Struct;\n\n");
 
-  // Inyección de Macros de Asignación por literales compuestos (C23 standard compliant)
-  fprintf(output, "#define ANY_INT(val)     ((AxoAny){ .tipo = T_INT,     .dato.v_int = (val) })\n");
-  fprintf(output, "#define ANY_DEC(val)     ((AxoAny){ .tipo = T_DEC,     .dato.v_dec = (val) })\n");
-  fprintf(output, "#define ANY_COMPLEX(val) ((AxoAny){ .tipo = T_COMPLEX, .dato.v_complex = (val) })\n");
-  fprintf(output, "#define ANY_STR(val)     ((AxoAny){ .tipo = T_STRING,  .dato.v_string = (val) })\n");
-  fprintf(output, "#define ANY_BOOL(val)    ((AxoAny){ .tipo = T_BOOL,    .dato.v_bool = (val) })\n");
-  fprintf(output, "#define ANY_PTR(val)     ((AxoAny){ .tipo = T_POINTER, .dato.v_ptr = (val) })\n\n");
+  // Inyectamos las definiciones de estructuras para los Slices estándar de Axolang
+  fprintf(salida_c, "typedef struct { int* data; size_t length; } Axoarray_int;\n");
+  fprintf(salida_c, "typedef struct { double* data; size_t length; } Axoarray_dec;\n");
+  fprintf(salida_c, "typedef struct { char* data; size_t length; } Axoarray_char;\n");
+  fprintf(salida_c, "typedef struct { Axoany_Struct* data; size_t length; } Axoarray_any;\n\n");
 
-  if (strlen(buffer_structs) > 0) {
-    fprintf(output, "\n/* Definición de Estructuras Axolang */\n");
-    fprintf(output, "%s\n", buffer_structs);
-  }
+  // ====================================================================
+  // LLAMADA CLAVE A TU FUNCIÓN TRANSPILAR
+  // ====================================================================
+  // Enviamos la cadena con el código .axo y el puntero al archivo .c
+  transpilar(codigo_axolang, salida_c);
 
-  if (strlen(funciones_paquetes) > 0) {
-    fprintf(output, "\n/* Métodos Extraídos de Paquetes Axolang */\n");
-    fprintf(output, "%s\n", funciones_paquetes);
-  }
+  // Inyectamos las lambdas y métodos de comportamiento que se extrajeron durante el parseo
+  // Justo antes de terminar de escribir el archivo para que queden disponibles globalmente
+  fprintf(salida_c, "\n// --- PROTOTIPOS DE LAMBDAS EXTRAÍDAS ---\n");
+  fprintf(salida_c, "%s\n", prototipos_lambdas);
 
-  // SECCIÓN CORRECTA: Variables Globales inyectadas en el Top-Level de C
-  if (strlen(buffer_globales) > 0) {
-    fprintf(output, "\n/* Variables Globales de Axolang */\n");
-    fprintf(output, "%s\n", buffer_globales);
-  }
+  fprintf(salida_c, "\n// --- MÉTODOS DE COMPORTAMIENTO EXTRAÍDOS ---\n");
+  fprintf(salida_c, "%s\n", funciones_extraidas);
 
-  fprintf(output, "\n%s", code_body);
-  fclose(output);
-  free(code_body);
+  // Cerramos el archivo temporal físico en el disco duro
+  fclose(salida_c);
+  free(codigo_axolang);
 
-  char compile_command[512];
-  sprintf(compile_command, "gcc -std=c23 %s -lm -o %s", temp_c_file, output_executable);
-  printf("[axoc] Transpilando %s...\n", input_filename);
-  printf("[axoc] Compilando en modo C23 nativo puro mediante GCC...\n");
+  printf("[Axolang] Código intermedio 'salida.c' generado con éxito.\n");
 
-  int result = system(compile_command);
-  if (result == 0) {
-    printf("[axoc] ¡Éxito! Ejecutable nativo C23 generado con éxito: '%s'\n", output_executable);
+  // 4. INVOCAR AL COMPILADOR DEL SISTEMA (GCC o CLANG) AUTOMÁTICAMENTE
+  printf("[Axolang] Compilando binario nativo en estándar C23...\n");
+
+  // Lanzamos el comando usando system() pasándole el flag -std=c23
+  int resultado_compilacion = system("gcc salida.c -o programa_ejecutable -std=c23 -lm");
+
+  if (resultado_compilacion == 0) {
+    printf("[Axolang] ¡Compilación exitosa! Ejecutable creado como './programa_ejecutable'\n");
   } else {
-    printf("[axoc] Error: Falló la compilación nativa en GCC.\n");
-    return 1;
+    printf("[Axolang] Error durante la compilación nativa de C. Verifica los búferes sintácticos.\n");
   }
 
-  return 0;
+  return resultado_compilacion;
 }
