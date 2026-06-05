@@ -12,7 +12,7 @@ pkg algo = {
   func saludar = ():[]char{
     return «Hola desde variable»
   }
-  any suma = (dec a, dec b):[]dec {
+  func suma = (dec a, dec b):[]dec {
     // Al transpilearse, interceptamos esto para usar malloc dinámico
     dec sum[] = «0,0»
     sum[0] = a + b 
