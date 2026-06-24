@@ -1,4 +1,11 @@
-
+#script
+func print = () {
+inline_lua «
+function print(...)
+    _G.print(...)
+end
+»
+inline_c «
 #include <stdio.h>
 #include <complex.h>
 
@@ -8,9 +15,9 @@
     double: printf("%f\n", (double)(X)), \
     float: printf("%f\n", (float)(X)), \
     char*: printf("%s\n", (char*)(X)), \
-    const char*: printf("%s\n", (const char*)(X)), \
     double complex: printf("%f + %fi\n", creal(X), cimag(X)), \
     _Decimal128: printf("%DDf\n", (_Decimal128)(X)), \
     default: printf("[Tipo desconocido]\n") \
 )
-
+»
+}
