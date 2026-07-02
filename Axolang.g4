@@ -41,12 +41,14 @@ matchStatement
 
 matchCase
 : expression '->' declaration ';'
-| expression '->' '{' declaration '}'
+| expression '->' '{' declaration* '}'
 | '_' '->' declaration ';' // Caso por defecto (Gleam style)
 ;
 
 declaration
-: IDENTIFIER '=' expression ;
+: IDENTIFIER '=' expression
+| IDENTIFIER '(' expression* ')'
+;
 
 // Expresión matemática o literal simple por ahora
 expression
@@ -63,7 +65,7 @@ expression
 IDENTIFIER    : [a-zA-Z_][a-zA-Z0-9_]* ;
 CHAR_LITERAL  : '\'' [a-zA-Z0-9_]* '\'';
 INT_LITERAL   : [+-]? [0-9]+ ;
-FLOAT_LITERAL : [+-]? [0-9]+ '.' [0-9]+ | [+-]? [0-9]+ ; //2.2 y 2
+FLOAT_LITERAL : [+-]? [0-9]+ '.' [0-9]+;
 DECIMAL_LITERAL: [+-]? [0-9]+ '.' [0-9]+ [dD] | [+-]? [0-9]+ [dD] ;//3.3D y 3D
 COMPLEX_LITERAL
 : [+-]? [0-9]+ ('.' [0-9]+)? [ \t]* [+-] [ \t]* [0-9]+ ('.' [0-9]+)? [iI]  // Ej: 4+5i, 3.14 - 2.5i, 4 + 2i

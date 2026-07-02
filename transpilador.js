@@ -68,7 +68,14 @@ typedef union {
 } axo_any_t;
 
 `;
-
+class newvar {
+    constructor(name, type) {
+        this.name = name;
+        this.type = type;
+    }
+}
+let savedvars = [];
+let vari = 0;
 class AxolangToCListener extends AxolangListener {
     constructor() {
         super();
@@ -175,14 +182,20 @@ class AxolangToCListener extends AxolangListener {
             case "sdec":
                 value = value.replace(/D$/, "DF");
                 this.outputC += "_Decimal32 " + id + " = " + value + ";\n";
+                savedvars[vari] = new newvar(id, "sdec");
+                vari++;
                 break;
             case "dec":
                 value = value.replace(/D$/, "DD");
                 this.outputC += "_Decimal64 " + id + " = " + value + ";\n";
+                savedvars[vari] = new newvar(id, "dec");
+                vari++;
                 break;
             case "ldec":
                 value = value.replace(/D$/, "DL");
                 this.outputC += "_Decimal128 " + id + " = " + value + ";\n";
+                savedvars[vari] = new newvar(id, "ldec");
+                vari++;
                 break;
             case "chara":
                 this.outputC += "char " + id + " = " + value + ";\n";
@@ -214,14 +227,35 @@ class AxolangToCListener extends AxolangListener {
 
     enterMatchCase(ctx) {
         const caseExpr = ctx.expression(0).getText();
-        const actionExpr = ctx.declaration(0).getText();
+        let actionExpr = ctx.declaration(0).getText();
 
+        if (actionExpr.includes("D") || actionExpr.includes("d")) {
+          if (actionExpr.getChild(1).includes("=")){
+            let savexp = actionExpr.expression(0).getText()
+            if(savexp.includes("D")){
+              for (let vari = 0; vari < savedvars.length; vari++) {
+                if(savedvars[vari].name == savexp.getChild(0).getText()){
+                  if(savedvars[vari].type == "sdec"){
+                    actionExpr.replace(/[dD]$/, "DF")
+                  } else if(savedvars[vari].type == "dec"){
+                    actionExpr.replace(/[dD]$/,"DD")
+                  }
+                }
+              }
+            }
+          }
+        } else if (actionExpr.includes("i") || actionExpr.includes("I")) {
+            actionExpr = actionExpr.replace(/[iI]$/, " * I");
+        }
+        if (actionExpr && !actionExpr.endsWith(";")) {
+            actionExpr += ";";
+        }
         if (!this.isComplexMatch) {
             // Modo Switch Rígido
             if (ctx.getChild(0).getText() === "_") {
-                this.outputC += `        default:\n            // Acción del caso por defecto\n            break;\n`;
+                this.outputC += `        default:\n            ${actionExpr}\n            break;\n`;
             } else {
-                this.outputC += `        case ${caseExpr}:\n \n
+                this.outputC += `        case ${caseExpr}:\n ${actionExpr}\n
                 break;\n`;
             }
         } else {
@@ -243,6 +277,7 @@ class AxolangToCListener extends AxolangListener {
         }
         this.isComplexMatch = false; // Resetear estado
     }
+    enterDeclaration(ctx) {}
 }
 
 // Función principal del Transpilador
@@ -276,8 +311,9 @@ com micomplejo = -6 + 9i
 match(entero){
   1 -> {
     micomplejo = -6 - 7i
+    hi()
   }
-  2 -> dinero = 5D ;
+  2 -> dinero = 5D;
 }
 `;
 
