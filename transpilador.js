@@ -6,7 +6,62 @@ import AxolangListener from "./AxolangListener.js";
 // Estructura fija de C (Corregida para evitar nombres duplicados en la unión)
 const HEADER_C = `
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <complex.h>
+#include <uchar.h>
+#include <wchar.h>
+#include <inttypes.h>
+
+static inline void axo_print_c8(char8_t c) {
+    // char8_t es UTF-8 nativo, se puede imprimir directamente como carácter o string
+    printf("%c\t", (char)c);
+}
+
+static inline void axo_print_c16(char16_t c) {
+    // Conversión rápida rudimentaria o formateada para UTF-16
+    printf("%lc\t", (wint_t)c);
+}
+
+static inline void axo_print_char32(char32_t c) {
+    char buf[5] = {0};
+    mbstate_t st = {0};
+    c32rtomb(buf, c, &st);
+    printf("%s\t", buf);
+}
+
+static inline void axo_print_float_complex(float complex c) {
+    printf("%f + %fi\t", crealf(c), cimagf(c));
+}
+
+static inline void axo_print_double_complex(double complex c) {
+    printf("%lf + %lfi\t", creal(c), cimag(c));
+}
+
+#define axo_print_single(X) _Generic((X), \
+    bool:                printf((X) ? "true\t" : "false\t"), \
+    int8_t:              printf("%" PRId8 "\t", (int8_t)(X)), \
+    uint8_t:             printf("%" PRIu8 "\t", (uint8_t)(X)), \
+    int16_t:             printf("%" PRId16 "\t", (int16_t)(X)), \
+    uint16_t:            printf("%" PRIu16 "\t", (uint16_t)(X)), \
+    int32_t:             printf("%" PRId32 "\t", (int32_t)(X)), \
+    uint32_t:            printf("%" PRIu32 "\t", (uint32_t)(X)), \
+    int64_t:             printf("%" PRId64 "\t", (int64_t)(X)), \
+    uint64_t:            printf("%" PRIu64 "\t", (uint64_t)(X)), \
+    _Float16:            printf("%f\t", (float)(X)), \
+    float:               printf("%f\t", (float)(X)), \
+    double:              printf("%f\t", (double)(X)), \
+    long double:         printf("%Lf\t", (long double)(X)), \
+    char32_t:            _axo_print_char32(X), \
+    char*:               printf("%s\t", (char*)(X)), \
+    const char*:         printf("%s\t", (const char*)(X)), \
+    float complex:       _axo_print_float_complex(X), \
+    double complex:      _axo_print_double_complex(X), \
+    _Decimal64:          printf("%Df\t", (_Decimal64)(X)), \
+    _Decimal128:         printf("%DDf\t", (_Decimal128)(X)), \
+    default:             printf("[Objeto/Bloque void*]\t") \
+)
+
 typedef struct {
     int64_t value;       
     bool has_error;      
@@ -15,59 +70,59 @@ typedef struct {
 
 // === Nivel 1: xsvar (Unión pura de 16 bits / 2 Bytes) ===
 typedef union {
-  int8_t axo_xxsint;
-  uint8_t axo_xxsintu;
-  char axo_chara;
+  int8_t axo_int;
+  uint8_t axo_intu;
+  char8_t axo_chara;
   bool axo_boo;
 } xxsvar;
 
 typedef union {
-    int16_t   axo_xsint;    
-    uint16_t  axo_xsintu;   
-    _Float16  axo_xsflt;
-    char axo_chara;
+    int16_t   axo_int;    
+    uint16_t  axo_intu;   
+    _Float16  axo_flt;
+    char16_t axo_chara;
     bool axo_boo;
 } xsvar;
 
 // === Nivel 2: svar (Unión pura de 32 bits / 4 Bytes) ===
 typedef union {
-    char axo_chara;
+    char32_t axo_chara;
     bool axo_boo;
-    int32_t   axo_sint;     
-    uint32_t  axo_sintu;    
-    float     axo_sflt;     
-    _Float16 complex axo_xscom;
-    _Decimal32 axo_sdec; // Nombre corregido para evitar colisión
+    int32_t   axo_int;     
+    uint32_t  axo_intu;    
+    float     axo_flt;     
+    _Float16 complex axo_com;
+    _Decimal32 axo_dec; // Nombre corregido para evitar colisión
 } svar;
 
 // === Nivel 3: var / lvar (Unión pura de 64 bits / 8 Bytes) ===
 typedef union {
-    char axo_chara;
+    char32_t axo_chara;
     bool axo_boo;
     int64_t   axo_int;      
     uint64_t  axo_intu;     
     double    axo_flt;      
-    float complex axo_scom; 
+    float complex axo_com; 
     _Decimal64 axo_dec;
     void* axo_other;
 } var;
 typedef union {
-  char axo_chara;
+  char32_t axo_chara;
   bool axo_boo;
-  _BitInt(128) axo_lint;
-  unsigned _BitInt(128) axo_lintu;
-  long double axo_lflt;
+  _BitInt(128) axo_int;
+  unsigned _BitInt(128) axo_intu;
+  long double axo_flt;
   double complex axo_com;
   _Decimal128 axo_dec;
   void* axo_other;
 } lvar;
 typedef union {
-  char axo_chara;
+  char32_t axo_chara;
   bool axo_boo;
-  _BitInt(256) axo_xlint;
-  unsigned _BitInt(256) axo_xlintu;
-  _Float256 axo_xlflt;
-  long double axo_lcom;
+  _BitInt(256) axo_int;
+  unsigned _BitInt(256) axo_intu;
+  _Float256 axo_flt;
+  long double axo_com;
   _Decimal128 axo_dec;
   void* axo_other;
 } xlvar;
@@ -123,23 +178,23 @@ class AxolangToCListener extends AxolangListener {
                     `;
                 } else if (value.includes("\'")) {
                     this.outputC += `xxsvar ${id};
-                  ${id}.axo_chara = ${value};
+                  ${id}.axo_chara = u${value};
                   `;
                 } else if (value.includes("u")) {
                     value = value.replace(/u$/, "");
                     this.outputC += `xxsvar ${id};
-                    ${id}.axo_xxsintu = ${value};
+                    ${id}.axo_intu = ${value};
                     `;
                 } else {
                     this.outputC += `xxsvar ${id};
-                    ${id}.axo_xxsint = ${value};
+                    ${id}.axo_int = ${value};
                     `;
                 }
                 break;
             case "xsvar":
                 if (value.includes(".")) {
                     this.outputC += `xsvar ${id};
-                  ${id}.axo_xsflt = ${value};
+                  ${id}.axo_flt = ${value};
                   `;
                 } else if (value.includes("★") || value.includes("†")) {
                     value.includes("★")
@@ -150,16 +205,16 @@ class AxolangToCListener extends AxolangListener {
                     `;
                 } else if (value.includes("\'")) {
                     this.outputC += `xsvar ${id};
-                  ${id}.axo_chara = ${value};
+                  ${id}.axo_chara = u${value};
                   `;
                 } else if (value.includes("u")) {
                     value = value.replace(/u$/, "");
                     this.outputC += `xsvar ${id};
-                    ${id}.axo_xsintu = ${value};
+                    ${id}.axo_intu = ${value};
                     `;
                 } else {
                     this.outputC += `xsvar ${id};
-                    ${id}.axo_xsint = ${value};
+                    ${id}.axo_int = ${value};
                     `;
                 }
                 break;
@@ -168,16 +223,16 @@ class AxolangToCListener extends AxolangListener {
                     if (value.includes("D")) {
                         value = value.replace(/D$/, "DF");
                         this.outputC += `svar ${id};
-                  ${id}.axo_sdec = ${value};
+                  ${id}.axo_dec = ${value};
                   `;
                     } else if (value.includes("i")) {
                         value = value.replace(/i$/, " * I");
                         this.outputC += `svar ${id};
-                  ${id}.axo_xscom = ${value};
+                  ${id}.axo_com = ${value};
                   `;
                     } else {
                         this.outputC += `svar ${id};
-                  ${id}.axo_sflt = ${value};
+                  ${id}.axo_flt = ${value};
                   `;
                     }
                 } else if (value.includes("★") || value.includes("†")) {
@@ -189,16 +244,16 @@ class AxolangToCListener extends AxolangListener {
                     `;
                 } else if (value.includes("\'")) {
                     this.outputC += `svar ${id};
-                  ${id}.axo_chara = ${value};
+                  ${id}.axo_chara = u${value};
                   `;
                 } else if (value.includes("u")) {
                     value = value.replace(/u$/, "");
                     this.outputC += `svar ${id};
-                    ${id}.axo_sintu = ${value};
+                    ${id}.axo_intu = ${value};
                     `;
                 } else {
                     this.outputC += `svar ${id};
-                    ${id}.axo_sint = ${value};
+                    ${id}.axo_int = ${value};
                     `;
                 }
                 break;
@@ -212,7 +267,7 @@ class AxolangToCListener extends AxolangListener {
                     } else if (value.includes("i")) {
                         value = value.replace(/i$/, " * I");
                         this.outputC += `var ${id};
-                  ${id}.axo_scom = ${value};
+                  ${id}.axo_com = ${value};
                   `;
                     } else {
                         this.outputC += `var ${id};
@@ -228,11 +283,11 @@ class AxolangToCListener extends AxolangListener {
                     `;
                 } else if (value.includes("\'")) {
                     this.outputC += `var ${id};
-                  ${id}.axo_chara = ${value};
+                  ${id}.axo_chara = u${value};
                   `;
                 } else if (value.includes("{") && value.includes("\n")) {
                     this.outputC += `var ${id}
-                    ${id}.axo_other = ${value};\n
+                    ${id}.axo_other = &(struct ${value}){};\n
                     `;
                 } else if (value.includes("u")) {
                     value = value.replace(/u$/, "");
