@@ -3,96 +3,98 @@ import AxolangLexer from "./AxolangLexer.js";
 import AxolangParser from "./AxolangParser.js";
 import AxolangListener from "./AxolangListener.js";
 
-// Estructura fija de C que definimos en el Paso 2
+// Estructura fija de C (Corregida para evitar nombres duplicados en la unión)
 const HEADER_C = `
 #include <stdint.h>
 #include <complex.h>
-// Estructura universal de costo cero para simular excepciones
 typedef struct {
-    int64_t value;       // El valor de retorno real si todo sale bien
-    bool has_error;      // Bandera estática de error (0 o 1)
-    int32_t error_code;  // ID del tipo de error
+    int64_t value;       
+    bool has_error;      
+    int32_t error_code;  
 } axo_result_t;
 
-// === Nivel 1: xsany (Unión pura de 16 bits / 2 Bytes) ===
+// === Nivel 1: xsvar (Unión pura de 16 bits / 2 Bytes) ===
 typedef union {
-    int8_t    axo_xxsint;   // Entero ultra-corto con signo
-    uint8_t   axo_xxsintu;  // Entero ultra-corto sin signo
-    int16_t   axo_xsint;    // Entero corto con signo
-    uint16_t  axo_xsintu;   // Entero corto sin signo
-    _Float16  axo_xsflt;
-    char axo_chara;
-    bool axo_boo;
-} axo_xsany_t;
+  int8_t axo_xxsint;
+  uint8_t axo_xxsintu;
+  char axo_chara;
+  bool axo_boo;
+} xxsvar;
 
-// === Nivel 2: sany (Unión pura de 32 bits / 4 Bytes) ===
 typedef union {
-    int8_t    axo_xxsint;   // Entero ultra-corto con signo
-    uint8_t   axo_xxsintu;  // Entero ultra-corto sin signo
-    int16_t   axo_xsint;    // Entero corto con signo
-    uint16_t  axo_xsintu;   // Entero corto sin signo
+    int16_t   axo_xsint;    
+    uint16_t  axo_xsintu;   
     _Float16  axo_xsflt;
     char axo_chara;
     bool axo_boo;
-    // Hereda/incluye la capacidad de los tipos de 16 bits y añade:
-    int32_t   axo_sint;     // Entero estándar de 32 bits
-    uint32_t  axo_sintu;    // Entero de 32 bits sin signo
-    float     axo_sflt;     // Decimal corto (punto flotante de precisión simple)
-    _Float16 axo_xscom;
-    _Decimal32 axo_dec;
-} axo_sany_t;
+} xsvar;
 
-// === Nivel 3: any / lany (Unión pura de 64 bits / 8 Bytes) ===
+// === Nivel 2: svar (Unión pura de 32 bits / 4 Bytes) ===
 typedef union {
-  
-    int8_t    axo_xxsint;   // Entero ultra-corto con signo
-    uint8_t   axo_xxsintu;  // Entero ultra-corto sin signo
-    int16_t   axo_xsint;    // Entero corto con signo
-    uint16_t  axo_xsintu;   // Entero corto sin signo
-    _Float16  axo_xsflt;
     char axo_chara;
     bool axo_boo;
-    // Hereda/incluye la capacidad de los tipos de 16 bits y añade:
-    int32_t   axo_sint;     // Entero estándar de 32 bits
-    uint32_t  axo_sintu;    // Entero de 32 bits sin signo
-    float     axo_sflt;     // Decimal corto (punto flotante de precisión simple)
-    _Float16 axo_xscom;
-    _Decimal32 axo_dec;
-    // Escala para soportar enteros y decimales masivos de alta precisión:
-    int64_t   axo_int;      // Entero largo de 64 bits
-    uint64_t  axo_intu;     // Entero largo de 64 bits sin signo
-    double    axo_flt;      // Decimal estándar de doble precisión
-    float complex axo_scom; // Número complejo corto (2x float de 32 bits)
+    int32_t   axo_sint;     
+    uint32_t  axo_sintu;    
+    float     axo_sflt;     
+    _Float16 complex axo_xscom;
+    _Decimal32 axo_sdec; // Nombre corregido para evitar colisión
+} svar;
+
+// === Nivel 3: var / lvar (Unión pura de 64 bits / 8 Bytes) ===
+typedef union {
+    char axo_chara;
+    bool axo_boo;
+    int64_t   axo_int;      
+    uint64_t  axo_intu;     
+    double    axo_flt;      
+    float complex axo_scom; 
     _Decimal64 axo_dec;
     void* axo_other;
-} axo_any_t;
-
+} var;
+typedef union {
+  char axo_chara;
+  bool axo_boo;
+  _BitInt(128) axo_lint;
+  unsigned _BitInt(128) axo_lintu;
+  long double axo_lflt;
+  double complex axo_com;
+  _Decimal128 axo_dec;
+  void* axo_other;
+} lvar;
+typedef union {
+  char axo_chara;
+  bool axo_boo;
+  _BitInt(256) axo_xlint;
+  unsigned _BitInt(256) axo_xlintu;
+  _Float256 axo_xlflt;
+  long double axo_lcom;
+  _Decimal128 axo_dec;
+  void* axo_other;
+} xlvar;
 `;
-class newvar {
-    constructor(name, type) {
-        this.name = name;
-        this.type = type;
-    }
-}
-let savedvars = [];
-let vari = 0;
+
 class AxolangToCListener extends AxolangListener {
     constructor() {
         super();
         this.outputC = "";
+        this.isComplexMatch = false;
+        this.matchExpr = "";
+        this.caseCount = 0;
+
+        // TABLA DE SÍMBOLOS: Tu idea de 'savedvars' estructurada como un mapa de clase profesional
+        this.tablaSimbolos = new Map();
     }
 
     // Se ejecuta al leer una declaración de variable (ej: auto x = 10;)
     enterVarDeclaration(ctx) {
         const id = ctx.IDENTIFIER().getText();
         let value = ctx.expression().getText();
-        let type = ctx.getChild(0).getText(); // Puede ser 'auto' o un tipo explícito
+        let type = ctx.getChild(0).getText();
 
-        // INFERENCIA AUTOMÁTICA (Carga cognitiva asumida por tu compilador)
+        // INFERENCIA AUTOMÁTICA
         if (type === "auto") {
-            // Si el valor tiene un punto, inferimos 'dec' (double en C), si no, 'int' (int64_t)
             if (value.includes(".")) {
-                if (value.includes("D")) {
+                if (value.toUpperCase().includes("D")) {
                     type = "dec";
                 } else {
                     type = "flt";
@@ -105,119 +107,75 @@ class AxolangToCListener extends AxolangListener {
                 type = "int";
             }
         }
-        let preval;
+
+        // Guardamos el tipo de la variable de forma estática en la Tabla de Símbolos
+        this.tablaSimbolos.set(id, type);
+
         // Traducir los tipos de Axolang a tipos primitivos de C
         switch (type) {
-            case "xxsint":
-                this.outputC += "int8_t " + id + " = " + value + ";\n";
+            case "xxsvar":
+                if (value.includes("★") || value.includes("†")) {
+                    value.includes("★")
+                        ? (value = value.replace(/★$/, "true"))
+                        : (value = value.replace(/†$/, "false"));
+                    this.outputC += `xxsvar ${id};\n
+                    ${id}.axo_boo = ${value};\n
+                    `;
+                } else if (value.includes("\'")) {
+                    this.outputC += `xxsvar ${id};\n
+                  ${id}.axo_chara = ${value};\n
+                  `;
+                } else if (value.includes("u") || value.includes("U")) {
+                    value = value.replace(/[uU]$/, "");
+                    this.outputC += `xxsvar ${id};\n
+                    ${id}.axo_xxsintu = ${value};\n
+                    `;
+                } else {
+                    this.outputC += `xxsvar ${id};\n
+                    ${id}.axo_xxsint = ${value};\n
+                    `;
+                }
                 break;
-            case "xsint":
-                this.outputC += "int16_t " + id + " = " + value + ";\n";
+            case "xsvar":
+                if (value.includes(".")) {
+                    this.outputC += `xsvar ${id};\n
+                  ${id}.axo_xsflt = ${value};\n
+                  `;
+                } else if (value.includes("★") || value.includes("†")) {
+                    value.includes("★")
+                        ? (value = value.replace(/★$/, "true"))
+                        : (value = value.replace(/†$/, "false"));
+                    this.outputC += `xsvar ${id};\n
+                    ${id}.axo_boo = ${value};\n
+                    `;
+                } else if (value.includes("\'")) {
+                    this.outputC += `xsvar ${id};\n
+                  ${id}.axo_chara = ${value};\n
+                  `;
+                } else if (value.includes("u") || value.includes("U")) {
+                    value = value.replace(/[uU]$/, "");
+                    this.outputC += `xsvar ${id};\n
+                    ${id}.axo_xsintu = ${value}
+                    `;
+                } else {
+                    this.outputC += `xsvar ${id};\n
+                    ${id}.axo_xsint = ${value}
+                    `;
+                }
                 break;
-            case "sint":
-                this.outputC += "int32_t " + id + " = " + value + ";\n";
-                break;
-            case "int":
-                this.outputC += "int64_t " + id + " = " + value + ";\n";
-                break;
-            case "lint":
-                this.outputC += "_BitInt(128) " + id + " = " + value + ";\n";
-                break;
-            case "xlint":
-                this.outputC += "_BitInt(256) " + id + " = " + value + ";\n";
-                break;
-            case "xxsintu":
-                this.outputC += "uint8_t " + id + " = " + value + ";\n";
-                break;
-            case "xsintu":
-                this.outputC += "uint16_t " + id + " = " + value + ";\n";
-                break;
-            case "sintu":
-                this.outputC += "uint32_t " + id + " = " + value + ";\n";
-                break;
-            case "intu":
-                this.outputC += "uint64_t " + id + " = " + value + ";\n";
-                break;
-            case "lintu":
-                this.outputC +=
-                    "unsigned _BitInt(128) " + id + " = " + value + ";\n";
-                break;
-            case "xlintu":
-                this.outputC +=
-                    "unsigned _BitInt(256) " + id + " = " + value + ";\n";
-                break;
-            case "xsflt":
-                this.outputC += "_Float16 " + id + " = " + value + ";\n";
-                break;
-            case "sflt":
-                this.outputC += "float " + id + " = " + value + ";\n";
-                break;
-            case "flt":
-                this.outputC += "double " + id + " = " + value + ";\n";
-                break;
-            case "lflt":
-                this.outputC += "long double " + id + " = " + value + ";\n";
-                break;
-            case "xlflt":
-                this.outputC += "_Float256 " + id + " = " + value + ";\n";
-                break;
-            case "xscom":
-                value = value.replace(/i$/, " * I");
-                this.outputC +=
-                    "_Float16 complex " + id + " = " + value + " ;\n";
-                break;
-            case "scom":
-                value = value.replace(/i$/, " * I");
-                this.outputC += "float complex " + id + " = " + value + " ;\n";
-                break;
-            case "com":
-                value = value.replace(/i$/, " * I");
-                this.outputC += "double complex " + id + " = " + value + " ;\n";
-                break;
-            case "lcom":
-                value = value.replace(/i$/, " * I");
-                this.outputC +=
-                    "long double complex " + id + " = " + value + " ;\n";
-                break;
-            case "sdec":
-                value = value.replace(/D$/, "DF");
-                this.outputC += "_Decimal32 " + id + " = " + value + ";\n";
-                savedvars[vari] = new newvar(id, "sdec");
-                vari++;
-                break;
-            case "dec":
-                value = value.replace(/D$/, "DD");
-                this.outputC += "_Decimal64 " + id + " = " + value + ";\n";
-                savedvars[vari] = new newvar(id, "dec");
-                vari++;
-                break;
-            case "ldec":
-                value = value.replace(/D$/, "DL");
-                this.outputC += "_Decimal128 " + id + " = " + value + ";\n";
-                savedvars[vari] = new newvar(id, "ldec");
-                vari++;
-                break;
-            case "chara":
-                this.outputC += "char " + id + " = " + value + ";\n";
-                break;
-            case "boo":
-                this.outputC += "bool " + id + " = " + value + ";\n";
-                break;
-            default:
-            // code
         }
     }
+
     enterMatchStatement(ctx) {
         const exprText = ctx.IDENTIFIER().getText();
 
-        // Detectamos si es un número complejo (contiene una 'i') o una estructura
-        const esComplejo = exprText.includes("i") || exprText.includes("+");
+        // CORRECCIÓN: Consultamos la Tabla de Símbolos en vez de evaluar las letras del nombre de la variable
+        const tipoVariable = this.tablaSimbolos.get(exprText) || "int";
+        const esComplejo = tipoVariable.includes("com");
 
         if (!esComplejo) {
-            // Generamos un switch/case rígido de C de alta velocidad
             this.outputC += `    switch (${exprText}) {\n`;
         } else {
-            // Marcamos que iniciaremos una cascada if-else para tipos complejos
             this.outputC += `    // Cascada lógica para tipo complejo\n`;
             this.isComplexMatch = true;
             this.matchExpr = exprText;
@@ -226,46 +184,51 @@ class AxolangToCListener extends AxolangListener {
     }
 
     enterMatchCase(ctx) {
-        const caseExpr = ctx.expression(0).getText();
-        let actionExpr = ctx.declaration(0).getText();
+        // Extraemos limpiamente el bloque de la acción usando división por flecha para evitar fallos de nodos vacíos
+        const matchCaseText = ctx.getText();
+        let actionExpr = matchCaseText.split("->")[1] || "";
 
-        if (actionExpr.includes("D") || actionExpr.includes("d")) {
-          if (actionExpr.getChild(1).includes("=")){
-            let savexp = actionExpr.expression(0).getText()
-            if(savexp.includes("D")){
-              for (let vari = 0; vari < savedvars.length; vari++) {
-                if(savedvars[vari].name == savexp.getChild(0).getText()){
-                  if(savedvars[vari].type == "sdec"){
-                    actionExpr.replace(/[dD]$/, "DF")
-                  } else if(savedvars[vari].type == "dec"){
-                    actionExpr.replace(/[dD]$/,"DD")
-                  }
-                }
-              }
+        // Limpiamos las llaves si el bloque viene envuelto en { }
+        actionExpr = actionExpr.replace(/^\{|\}$/g, "").trim();
+
+        // 1. REEMPLAZO DINÁMICO DE SUFIJOS DECIMALES USANDO TU LOGIC DE TABLA DE SÍMBOLOS
+        // Busca un patrón 'variable = numeroD' de forma segura mediante expresiones regulares globales
+        actionExpr = actionExpr.replace(
+            /([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*([+-]?[0-9]+(?:\.[0-9]+)?)[dD]\b/g,
+            (match, varName, numValue) => {
+                const tipoDestino = this.tablaSimbolos.get(varName) || "dec";
+                let sufijoC = "DD"; // Por defecto 'dec' -> _Decimal64
+
+                if (tipoDestino === "sdec") sufijoC = "DF";
+                else if (tipoDestino === "ldec") sufijoC = "DL";
+
+                return `${varName} = ${numValue}${sufijoC}`;
             }
-          }
-        } else if (actionExpr.includes("i") || actionExpr.includes("I")) {
-            actionExpr = actionExpr.replace(/[iI]$/, " * I");
-        }
+        );
+
+        // 2. REEMPLAZO DE UNIDADES IMAGINARIAS COMPLEJAS EN EL BLOQUE
+        actionExpr = actionExpr.replace(/[iI]$/, " * I");
+
+        // Aseguramos el punto y coma final de la instrucción en C
         if (actionExpr && !actionExpr.endsWith(";")) {
             actionExpr += ";";
         }
+
+        // Inyección estructurada en C
         if (!this.isComplexMatch) {
-            // Modo Switch Rígido
+            const caseExpr = ctx.expression(0).getText();
             if (ctx.getChild(0).getText() === "_") {
                 this.outputC += `        default:\n            ${actionExpr}\n            break;\n`;
             } else {
-                this.outputC += `        case ${caseExpr}:\n ${actionExpr}\n
-                break;\n`;
+                this.outputC += `        case ${caseExpr}:\n            ${actionExpr}\n            break;\n`;
             }
         } else {
-            // Modo Cascada If-Else para complejos (usa <complex.h>)
             if (ctx.getChild(0).getText() === "_") {
-                this.outputC += `    else {\n        // Defecto complejo\n    }\n`;
+                this.outputC += `    else {\n        ${actionExpr}\n    }\n`;
             } else {
+                const caseExpr = ctx.expression(0).getText();
                 let prefix = this.caseCount === 0 ? "    if" : "    else if";
-                // En C, los complejos no se comparan con ==, se usa creal() y cimag()
-                this.outputC += `${prefix} (creal(${this.matchExpr}) == creal(${caseExpr}) && cimag(${this.matchExpr}) == cimag(${caseExpr})) {\n        // Acción\n    }\n`;
+                this.outputC += `${prefix} (creal(${this.matchExpr}) == creal(${caseExpr}) && cimag(${this.matchExpr}) == cimag(${caseExpr})) {\n        ${actionExpr}\n    }\n`;
                 this.caseCount++;
             }
         }
@@ -275,9 +238,8 @@ class AxolangToCListener extends AxolangListener {
         if (!this.isComplexMatch) {
             this.outputC += `    }\n`;
         }
-        this.isComplexMatch = false; // Resetear estado
+        this.isComplexMatch = false;
     }
-    enterDeclaration(ctx) {}
 }
 
 // Función principal del Transpilador
@@ -291,7 +253,6 @@ function transpile(inputCode) {
     const listener = new AxolangToCListener();
     antlr4.tree.ParseTreeWalker.DEFAULT.walk(listener, tree);
 
-    // Construimos el archivo de C final
     let finalCode = HEADER_C + "\nint main() {\n";
     finalCode += listener.outputC;
     finalCode += "    return 0;\n}";
@@ -301,20 +262,10 @@ function transpile(inputCode) {
 
 // --- PRUEBA DEL TRANSPILADOR ---
 const codigoAxolang = `
-auto inferido = 6.7D
-chara letra = 'a'
-boo onoff = true
-dec dinero = 4.6D
-flt decimal = 8.7
-int entero = 69
-com micomplejo = -6 + 9i
-match(entero){
-  1 -> {
-    micomplejo = -6 - 7i
-    hi()
-  }
-  2 -> dinero = 5D;
-}
+xsvar letra = 'a'
+xsvar onoff = ★
+xsvar entero = 45u
+xsvar flotante = 2.2
 `;
 
 console.log(transpile(codigoAxolang));

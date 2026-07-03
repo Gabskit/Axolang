@@ -2,31 +2,32 @@
 // jshint ignore: start
 import antlr4 from 'antlr4';
 import AxolangListener from './AxolangListener.js';
-const serializedATN = [4,1,46,90,2,0,7,0,2,1,7,1,2,2,7,2,2,3,7,3,2,4,7,4,
+const serializedATN = [4,1,27,91,2,0,7,0,2,1,7,1,2,2,7,2,2,3,7,3,2,4,7,4,
 2,5,7,5,2,6,7,6,2,7,7,7,1,0,5,0,18,8,0,10,0,12,0,21,9,0,1,0,1,0,1,1,1,1,
 3,1,27,8,1,1,2,1,2,3,2,31,8,2,1,2,1,2,1,2,1,2,1,3,1,3,1,4,1,4,1,4,1,4,1,
 4,1,4,4,4,45,8,4,11,4,12,4,46,1,4,1,4,1,5,1,5,1,5,1,5,1,5,1,5,1,5,1,5,1,
 5,5,5,60,8,5,10,5,12,5,63,9,5,1,5,1,5,1,5,1,5,1,5,1,5,1,5,3,5,72,8,5,1,6,
-1,6,1,6,1,6,1,6,1,6,5,6,80,8,6,10,6,12,6,83,9,6,1,6,3,6,86,8,6,1,7,1,7,1,
-7,0,0,8,0,2,4,6,8,10,12,14,0,2,1,0,3,31,1,0,40,45,90,0,19,1,0,0,0,2,26,1,
-0,0,0,4,30,1,0,0,0,6,36,1,0,0,0,8,38,1,0,0,0,10,71,1,0,0,0,12,85,1,0,0,0,
-14,87,1,0,0,0,16,18,3,2,1,0,17,16,1,0,0,0,18,21,1,0,0,0,19,17,1,0,0,0,19,
-20,1,0,0,0,20,22,1,0,0,0,21,19,1,0,0,0,22,23,5,0,0,1,23,1,1,0,0,0,24,27,
-3,4,2,0,25,27,3,8,4,0,26,24,1,0,0,0,26,25,1,0,0,0,27,3,1,0,0,0,28,31,5,1,
-0,0,29,31,3,6,3,0,30,28,1,0,0,0,30,29,1,0,0,0,31,32,1,0,0,0,32,33,5,40,0,
-0,33,34,5,2,0,0,34,35,3,14,7,0,35,5,1,0,0,0,36,37,7,0,0,0,37,7,1,0,0,0,38,
-39,5,32,0,0,39,40,5,33,0,0,40,41,5,40,0,0,41,42,5,34,0,0,42,44,5,35,0,0,
-43,45,3,10,5,0,44,43,1,0,0,0,45,46,1,0,0,0,46,44,1,0,0,0,46,47,1,0,0,0,47,
-48,1,0,0,0,48,49,5,36,0,0,49,9,1,0,0,0,50,51,3,14,7,0,51,52,5,37,0,0,52,
-53,3,12,6,0,53,54,5,38,0,0,54,72,1,0,0,0,55,56,3,14,7,0,56,57,5,37,0,0,57,
-61,5,35,0,0,58,60,3,12,6,0,59,58,1,0,0,0,60,63,1,0,0,0,61,59,1,0,0,0,61,
-62,1,0,0,0,62,64,1,0,0,0,63,61,1,0,0,0,64,65,5,36,0,0,65,72,1,0,0,0,66,67,
-5,39,0,0,67,68,5,37,0,0,68,69,3,12,6,0,69,70,5,38,0,0,70,72,1,0,0,0,71,50,
-1,0,0,0,71,55,1,0,0,0,71,66,1,0,0,0,72,11,1,0,0,0,73,74,5,40,0,0,74,75,5,
-2,0,0,75,86,3,14,7,0,76,77,5,40,0,0,77,81,5,33,0,0,78,80,3,14,7,0,79,78,
-1,0,0,0,80,83,1,0,0,0,81,79,1,0,0,0,81,82,1,0,0,0,82,84,1,0,0,0,83,81,1,
-0,0,0,84,86,5,34,0,0,85,73,1,0,0,0,85,76,1,0,0,0,86,13,1,0,0,0,87,88,7,1,
-0,0,88,15,1,0,0,0,8,19,26,30,46,61,71,81,85];
+1,6,1,6,1,6,1,6,1,6,5,6,80,8,6,10,6,12,6,83,9,6,1,6,1,6,3,6,87,8,6,1,7,1,
+7,1,7,0,0,8,0,2,4,6,8,10,12,14,0,2,1,0,3,10,1,0,19,26,92,0,19,1,0,0,0,2,
+26,1,0,0,0,4,30,1,0,0,0,6,36,1,0,0,0,8,38,1,0,0,0,10,71,1,0,0,0,12,86,1,
+0,0,0,14,88,1,0,0,0,16,18,3,2,1,0,17,16,1,0,0,0,18,21,1,0,0,0,19,17,1,0,
+0,0,19,20,1,0,0,0,20,22,1,0,0,0,21,19,1,0,0,0,22,23,5,0,0,1,23,1,1,0,0,0,
+24,27,3,4,2,0,25,27,3,8,4,0,26,24,1,0,0,0,26,25,1,0,0,0,27,3,1,0,0,0,28,
+31,5,1,0,0,29,31,3,6,3,0,30,28,1,0,0,0,30,29,1,0,0,0,31,32,1,0,0,0,32,33,
+5,19,0,0,33,34,5,2,0,0,34,35,3,14,7,0,35,5,1,0,0,0,36,37,7,0,0,0,37,7,1,
+0,0,0,38,39,5,11,0,0,39,40,5,12,0,0,40,41,5,19,0,0,41,42,5,13,0,0,42,44,
+5,14,0,0,43,45,3,10,5,0,44,43,1,0,0,0,45,46,1,0,0,0,46,44,1,0,0,0,46,47,
+1,0,0,0,47,48,1,0,0,0,48,49,5,15,0,0,49,9,1,0,0,0,50,51,3,14,7,0,51,52,5,
+16,0,0,52,53,3,12,6,0,53,54,5,17,0,0,54,72,1,0,0,0,55,56,3,14,7,0,56,57,
+5,16,0,0,57,61,5,14,0,0,58,60,3,12,6,0,59,58,1,0,0,0,60,63,1,0,0,0,61,59,
+1,0,0,0,61,62,1,0,0,0,62,64,1,0,0,0,63,61,1,0,0,0,64,65,5,15,0,0,65,72,1,
+0,0,0,66,67,5,18,0,0,67,68,5,16,0,0,68,69,3,12,6,0,69,70,5,17,0,0,70,72,
+1,0,0,0,71,50,1,0,0,0,71,55,1,0,0,0,71,66,1,0,0,0,72,11,1,0,0,0,73,74,5,
+19,0,0,74,75,5,2,0,0,75,87,3,14,7,0,76,77,5,19,0,0,77,81,5,12,0,0,78,80,
+3,14,7,0,79,78,1,0,0,0,80,83,1,0,0,0,81,79,1,0,0,0,81,82,1,0,0,0,82,84,1,
+0,0,0,83,81,1,0,0,0,84,87,5,13,0,0,85,87,3,2,1,0,86,73,1,0,0,0,86,76,1,0,
+0,0,86,85,1,0,0,0,87,13,1,0,0,0,88,89,7,1,0,0,89,15,1,0,0,0,8,19,26,30,46,
+61,71,81,86];
 
 
 const atn = new antlr4.atn.ATNDeserializer().deserialize(serializedATN);
@@ -38,21 +39,15 @@ const sharedContextCache = new antlr4.atn.PredictionContextCache();
 export default class AxolangParser extends antlr4.Parser {
 
     static grammarFileName = "Axolang.g4";
-    static literalNames = [ null, "'auto'", "'='", "'xsany'", "'sany'", 
-                            "'any'", "'lany'", "'xlany'", "'xxlany'", "'xxsint'", 
-                            "'xsint'", "'sint'", "'int'", "'lint'", "'xlint'", 
-                            "'xsflt'", "'sflt'", "'flt'", "'lflt'", "'xlflt'", 
-                            "'sdec'", "'dec'", "'ldec'", "'xscom'", "'scom'", 
-                            "'com'", "'lcom'", "'xlcom'", "'boo'", "'pkg'", 
-                            "'chara'", "'fun'", "'match'", "'('", "')'", 
-                            "'{'", "'}'", "'->'", "';'", "'_'" ];
+    static literalNames = [ null, "'auto'", "'='", "'xxsvar'", "'xsvar'", 
+                            "'svar'", "'var'", "'lvar'", "'xlvar'", "'xxlvar'", 
+                            "'fun'", "'match'", "'('", "')'", "'{'", "'}'", 
+                            "'->'", "';'", "'_'" ];
     static symbolicNames = [ null, null, null, null, null, null, null, null, 
                              null, null, null, null, null, null, null, null, 
-                             null, null, null, null, null, null, null, null, 
-                             null, null, null, null, null, null, null, null, 
-                             null, null, null, null, null, null, null, null, 
-                             "IDENTIFIER", "CHAR_LITERAL", "INT_LITERAL", 
-                             "FLOAT_LITERAL", "DECIMAL_LITERAL", "COMPLEX_LITERAL", 
+                             null, null, null, "IDENTIFIER", "CHAR_LITERAL", 
+                             "INT_LITERAL", "UINT_LITERAL", "FLOAT_LITERAL", 
+                             "DECIMAL_LITERAL", "COMPLEX_LITERAL", "BOOLEAN", 
                              "WS" ];
     static ruleNames = [ "program", "statement", "varDeclaration", "type", 
                          "matchStatement", "matchCase", "declaration", "expression" ];
@@ -76,7 +71,7 @@ export default class AxolangParser extends antlr4.Parser {
 	        this.state = 19;
 	        this._errHandler.sync(this);
 	        _la = this._input.LA(1);
-	        while(((((_la - 1)) & ~0x1f) === 0 && ((1 << (_la - 1)) & 4294967293) !== 0)) {
+	        while((((_la) & ~0x1f) === 0 && ((1 << _la) & 4090) !== 0)) {
 	            this.state = 16;
 	            this.statement();
 	            this.state = 21;
@@ -117,32 +112,11 @@ export default class AxolangParser extends antlr4.Parser {
 	        case 8:
 	        case 9:
 	        case 10:
-	        case 11:
-	        case 12:
-	        case 13:
-	        case 14:
-	        case 15:
-	        case 16:
-	        case 17:
-	        case 18:
-	        case 19:
-	        case 20:
-	        case 21:
-	        case 22:
-	        case 23:
-	        case 24:
-	        case 25:
-	        case 26:
-	        case 27:
-	        case 28:
-	        case 29:
-	        case 30:
-	        case 31:
 	            this.enterOuterAlt(localctx, 1);
 	            this.state = 24;
 	            this.varDeclaration();
 	            break;
-	        case 32:
+	        case 11:
 	            this.enterOuterAlt(localctx, 2);
 	            this.state = 25;
 	            this.matchStatement();
@@ -186,27 +160,6 @@ export default class AxolangParser extends antlr4.Parser {
 	        case 8:
 	        case 9:
 	        case 10:
-	        case 11:
-	        case 12:
-	        case 13:
-	        case 14:
-	        case 15:
-	        case 16:
-	        case 17:
-	        case 18:
-	        case 19:
-	        case 20:
-	        case 21:
-	        case 22:
-	        case 23:
-	        case 24:
-	        case 25:
-	        case 26:
-	        case 27:
-	        case 28:
-	        case 29:
-	        case 30:
-	        case 31:
 	            this.state = 29;
 	            this.type();
 	            break;
@@ -243,7 +196,7 @@ export default class AxolangParser extends antlr4.Parser {
 	        this.enterOuterAlt(localctx, 1);
 	        this.state = 36;
 	        _la = this._input.LA(1);
-	        if(!((((_la) & ~0x1f) === 0 && ((1 << _la) & 4294967288) !== 0))) {
+	        if(!((((_la) & ~0x1f) === 0 && ((1 << _la) & 2040) !== 0))) {
 	        this._errHandler.recoverInline(this);
 	        }
 	        else {
@@ -273,15 +226,15 @@ export default class AxolangParser extends antlr4.Parser {
 	    try {
 	        this.enterOuterAlt(localctx, 1);
 	        this.state = 38;
-	        this.match(AxolangParser.T__31);
+	        this.match(AxolangParser.T__10);
 	        this.state = 39;
-	        this.match(AxolangParser.T__32);
+	        this.match(AxolangParser.T__11);
 	        this.state = 40;
 	        this.match(AxolangParser.IDENTIFIER);
 	        this.state = 41;
-	        this.match(AxolangParser.T__33);
+	        this.match(AxolangParser.T__12);
 	        this.state = 42;
-	        this.match(AxolangParser.T__34);
+	        this.match(AxolangParser.T__13);
 	        this.state = 44; 
 	        this._errHandler.sync(this);
 	        _la = this._input.LA(1);
@@ -291,9 +244,9 @@ export default class AxolangParser extends antlr4.Parser {
 	            this.state = 46; 
 	            this._errHandler.sync(this);
 	            _la = this._input.LA(1);
-	        } while(((((_la - 39)) & ~0x1f) === 0 && ((1 << (_la - 39)) & 127) !== 0));
+	        } while((((_la) & ~0x1f) === 0 && ((1 << _la) & 133955584) !== 0));
 	        this.state = 48;
-	        this.match(AxolangParser.T__35);
+	        this.match(AxolangParser.T__14);
 	    } catch (re) {
 	    	if(re instanceof antlr4.error.RecognitionException) {
 		        localctx.exception = re;
@@ -324,11 +277,11 @@ export default class AxolangParser extends antlr4.Parser {
 	            this.state = 50;
 	            this.expression();
 	            this.state = 51;
-	            this.match(AxolangParser.T__36);
+	            this.match(AxolangParser.T__15);
 	            this.state = 52;
 	            this.declaration();
 	            this.state = 53;
-	            this.match(AxolangParser.T__37);
+	            this.match(AxolangParser.T__16);
 	            break;
 
 	        case 2:
@@ -336,13 +289,13 @@ export default class AxolangParser extends antlr4.Parser {
 	            this.state = 55;
 	            this.expression();
 	            this.state = 56;
-	            this.match(AxolangParser.T__36);
+	            this.match(AxolangParser.T__15);
 	            this.state = 57;
-	            this.match(AxolangParser.T__34);
+	            this.match(AxolangParser.T__13);
 	            this.state = 61;
 	            this._errHandler.sync(this);
 	            _la = this._input.LA(1);
-	            while(_la===40) {
+	            while((((_la) & ~0x1f) === 0 && ((1 << _la) & 528378) !== 0)) {
 	                this.state = 58;
 	                this.declaration();
 	                this.state = 63;
@@ -350,19 +303,19 @@ export default class AxolangParser extends antlr4.Parser {
 	                _la = this._input.LA(1);
 	            }
 	            this.state = 64;
-	            this.match(AxolangParser.T__35);
+	            this.match(AxolangParser.T__14);
 	            break;
 
 	        case 3:
 	            this.enterOuterAlt(localctx, 3);
 	            this.state = 66;
-	            this.match(AxolangParser.T__38);
+	            this.match(AxolangParser.T__17);
 	            this.state = 67;
-	            this.match(AxolangParser.T__36);
+	            this.match(AxolangParser.T__15);
 	            this.state = 68;
 	            this.declaration();
 	            this.state = 69;
-	            this.match(AxolangParser.T__37);
+	            this.match(AxolangParser.T__16);
 	            break;
 
 	        }
@@ -387,7 +340,7 @@ export default class AxolangParser extends antlr4.Parser {
 	    this.enterRule(localctx, 12, AxolangParser.RULE_declaration);
 	    var _la = 0;
 	    try {
-	        this.state = 85;
+	        this.state = 86;
 	        this._errHandler.sync(this);
 	        var la_ = this._interp.adaptivePredict(this._input,7,this._ctx);
 	        switch(la_) {
@@ -406,11 +359,11 @@ export default class AxolangParser extends antlr4.Parser {
 	            this.state = 76;
 	            this.match(AxolangParser.IDENTIFIER);
 	            this.state = 77;
-	            this.match(AxolangParser.T__32);
+	            this.match(AxolangParser.T__11);
 	            this.state = 81;
 	            this._errHandler.sync(this);
 	            _la = this._input.LA(1);
-	            while(((((_la - 40)) & ~0x1f) === 0 && ((1 << (_la - 40)) & 63) !== 0)) {
+	            while((((_la) & ~0x1f) === 0 && ((1 << _la) & 133693440) !== 0)) {
 	                this.state = 78;
 	                this.expression();
 	                this.state = 83;
@@ -418,7 +371,13 @@ export default class AxolangParser extends antlr4.Parser {
 	                _la = this._input.LA(1);
 	            }
 	            this.state = 84;
-	            this.match(AxolangParser.T__33);
+	            this.match(AxolangParser.T__12);
+	            break;
+
+	        case 3:
+	            this.enterOuterAlt(localctx, 3);
+	            this.state = 85;
+	            this.statement();
 	            break;
 
 	        }
@@ -444,9 +403,9 @@ export default class AxolangParser extends antlr4.Parser {
 	    var _la = 0;
 	    try {
 	        this.enterOuterAlt(localctx, 1);
-	        this.state = 87;
+	        this.state = 88;
 	        _la = this._input.LA(1);
-	        if(!(((((_la - 40)) & ~0x1f) === 0 && ((1 << (_la - 40)) & 63) !== 0))) {
+	        if(!((((_la) & ~0x1f) === 0 && ((1 << _la) & 133693440) !== 0))) {
 	        this._errHandler.recoverInline(this);
 	        }
 	        else {
@@ -489,34 +448,15 @@ AxolangParser.T__14 = 15;
 AxolangParser.T__15 = 16;
 AxolangParser.T__16 = 17;
 AxolangParser.T__17 = 18;
-AxolangParser.T__18 = 19;
-AxolangParser.T__19 = 20;
-AxolangParser.T__20 = 21;
-AxolangParser.T__21 = 22;
-AxolangParser.T__22 = 23;
-AxolangParser.T__23 = 24;
-AxolangParser.T__24 = 25;
-AxolangParser.T__25 = 26;
-AxolangParser.T__26 = 27;
-AxolangParser.T__27 = 28;
-AxolangParser.T__28 = 29;
-AxolangParser.T__29 = 30;
-AxolangParser.T__30 = 31;
-AxolangParser.T__31 = 32;
-AxolangParser.T__32 = 33;
-AxolangParser.T__33 = 34;
-AxolangParser.T__34 = 35;
-AxolangParser.T__35 = 36;
-AxolangParser.T__36 = 37;
-AxolangParser.T__37 = 38;
-AxolangParser.T__38 = 39;
-AxolangParser.IDENTIFIER = 40;
-AxolangParser.CHAR_LITERAL = 41;
-AxolangParser.INT_LITERAL = 42;
-AxolangParser.FLOAT_LITERAL = 43;
-AxolangParser.DECIMAL_LITERAL = 44;
-AxolangParser.COMPLEX_LITERAL = 45;
-AxolangParser.WS = 46;
+AxolangParser.IDENTIFIER = 19;
+AxolangParser.CHAR_LITERAL = 20;
+AxolangParser.INT_LITERAL = 21;
+AxolangParser.UINT_LITERAL = 22;
+AxolangParser.FLOAT_LITERAL = 23;
+AxolangParser.DECIMAL_LITERAL = 24;
+AxolangParser.COMPLEX_LITERAL = 25;
+AxolangParser.BOOLEAN = 26;
+AxolangParser.WS = 27;
 
 AxolangParser.RULE_program = 0;
 AxolangParser.RULE_statement = 1;
@@ -808,6 +748,10 @@ class DeclarationContext extends antlr4.ParserRuleContext {
 	    }
 	};
 
+	statement() {
+	    return this.getTypedRuleContext(StatementContext,0);
+	};
+
 	enterRule(listener) {
 	    if(listener instanceof AxolangListener ) {
 	        listener.enterDeclaration(this);
@@ -843,6 +787,10 @@ class ExpressionContext extends antlr4.ParserRuleContext {
 	    return this.getToken(AxolangParser.INT_LITERAL, 0);
 	};
 
+	UINT_LITERAL() {
+	    return this.getToken(AxolangParser.UINT_LITERAL, 0);
+	};
+
 	FLOAT_LITERAL() {
 	    return this.getToken(AxolangParser.FLOAT_LITERAL, 0);
 	};
@@ -861,6 +809,10 @@ class ExpressionContext extends antlr4.ParserRuleContext {
 
 	DECIMAL_LITERAL() {
 	    return this.getToken(AxolangParser.DECIMAL_LITERAL, 0);
+	};
+
+	BOOLEAN() {
+	    return this.getToken(AxolangParser.BOOLEAN, 0);
 	};
 
 	enterRule(listener) {

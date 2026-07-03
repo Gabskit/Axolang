@@ -18,21 +18,7 @@ varDeclaration
 
 // Tipos de datos según la especificación V4
 type
-// Jerarquía de Uniones Dinámicas (Carga cognitiva asumida por el compilador)
-: 'xsany' | 'sany' | 'any' | 'lany' | 'xlany' | 'xxlany'
-
-// Tipos enteros escalados
-| 'xxsint' | 'xsint' | 'sint' | 'int' | 'lint' | 'xlint'
-
-| 'xsflt' | 'sflt' | 'flt' | 'lflt' | 'xlflt'
-
-// Tipos decimales corregidos
-| 'sdec' | 'dec' | 'ldec'
-
-// Números complejos de rango extendido
-| 'xscom' | 'scom' | 'com' | 'lcom' | 'xlcom'
-
-| 'boo' | 'pkg' | 'chara' | 'fun'
+: 'xxsvar' | 'xsvar' | 'svar' | 'var' | 'lvar' | 'xlvar' | 'xxlvar' | 'fun'
 ;
 
 matchStatement
@@ -48,27 +34,31 @@ matchCase
 declaration
 : IDENTIFIER '=' expression
 | IDENTIFIER '(' expression* ')'
+| statement
 ;
 
 // Expresión matemática o literal simple por ahora
 expression
 : INT_LITERAL
+| UINT_LITERAL
 | FLOAT_LITERAL
 | IDENTIFIER
 | COMPLEX_LITERAL
 | CHAR_LITERAL
 | DECIMAL_LITERAL
-
+| BOOLEAN
 ;
 
 // --- TOKENS LÉXICOS ---
 IDENTIFIER    : [a-zA-Z_][a-zA-Z0-9_]* ;
 CHAR_LITERAL  : '\'' [a-zA-Z0-9_]* '\'';
 INT_LITERAL   : [+-]? [0-9]+ ;
+UINT_LITERAL  : [0-9]+ [uU];
 FLOAT_LITERAL : [+-]? [0-9]+ '.' [0-9]+;
 DECIMAL_LITERAL: [+-]? [0-9]+ '.' [0-9]+ [dD] | [+-]? [0-9]+ [dD] ;//3.3D y 3D
 COMPLEX_LITERAL
 : [+-]? [0-9]+ ('.' [0-9]+)? [ \t]* [+-] [ \t]* [0-9]+ ('.' [0-9]+)? [iI]  // Ej: 4+5i, 3.14 - 2.5i, 4 + 2i
 | [+-]? [0-9]+ ('.' [0-9]+)? [iI];                                    // Ej: 2i, 0.5i (Imaginarios puros)
+BOOLEAN :[★†];
 //FUN_DECLARATION : '(' [a-zA-Z_][a-zA-Z0-9_]* ')' ':' [a-zA-Z_] '{' '}'
 WS            : [ \t\r\n]+ -> skip ;
