@@ -37,9 +37,6 @@ declaration
 | statement
 ;
 
-pkgDeclaration
-: '{' OTHER '}'
-;
 // Expresión matemática o literal simple por ahora
 expression
 : INT_LITERAL
@@ -50,7 +47,7 @@ expression
 | CHAR_LITERAL
 | DECIMAL_LITERAL
 | BOOLEAN
-| pkgDeclaration
+| PKG
 ;
 
 // --- TOKENS LÉXICOS ---
@@ -64,6 +61,7 @@ COMPLEX_LITERAL
 : [+-]? [ \t]* [0-9]+ ('.' [0-9]+)? [ \t]* [+-] [ \t]* [0-9]+ ('.' [0-9]+)? [ \t]* 'i'  // Ej: 4+5i, 3.14 - 2.5i, 4 + 2i
 | [+-]? [ \t]* [0-9]+ ('.' [0-9]+)? [ \t]* 'i';                                    // Ej: 2i, 0.5i (Imaginarios puros)
 BOOLEAN :[★†];
+PKG : '{' .*? '}';
 //FUN_DECLARATION : '(' [a-zA-Z_][a-zA-Z0-9_]* ')' ':' [a-zA-Z_] '{' '}'
 WS            : [ \t\r\n]+ -> skip ;
-OTHER : .?*;
+OTHER : .+? ;

@@ -230,11 +230,11 @@ class AxolangToCListener extends AxolangListener {
                     this.outputC += `var ${id};
                   ${id}.axo_chara = ${value};
                   `;
-                } else if(value.includes("{") && value.includes("\n")){
-                  this.outputC += `typedef struct{
-                  }
-                    `
-                }else if (value.includes("u")) {
+                } else if (value.includes("{") && value.includes("\n")) {
+                    this.outputC += `var ${id}
+                    ${id}.axo_other = ${value};\n
+                    `;
+                } else if (value.includes("u")) {
                     value = value.replace(/u$/, "");
                     this.outputC += `var ${id};
                     ${id}.axo_intu = ${value};
