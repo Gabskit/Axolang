@@ -32,6 +32,15 @@ export default class AxolangListener extends antlr4.tree.ParseTreeListener {
 	}
 
 
+	// Enter a parse tree produced by AxolangParser#assignmentStatement.
+	enterAssignmentStatement(ctx) {
+	}
+
+	// Exit a parse tree produced by AxolangParser#assignmentStatement.
+	exitAssignmentStatement(ctx) {
+	}
+
+
 	// Enter a parse tree produced by AxolangParser#type.
 	enterType(ctx) {
 	}
@@ -68,12 +77,39 @@ export default class AxolangListener extends antlr4.tree.ParseTreeListener {
 	}
 
 
+	// Enter a parse tree produced by AxolangParser#pkg.
+	enterPkg(ctx) {
+	}
+
+	// Exit a parse tree produced by AxolangParser#pkg.
+	exitPkg(ctx) {
+	}
+
+
 	// Enter a parse tree produced by AxolangParser#expression.
 	enterExpression(ctx) {
 	}
 
 	// Exit a parse tree produced by AxolangParser#expression.
 	exitExpression(ctx) {
+	}
+
+
+	// Enter a parse tree produced by AxolangParser#arrayLiteral.
+	enterArrayLiteral(ctx) {
+	}
+
+	// Exit a parse tree produced by AxolangParser#arrayLiteral.
+	exitArrayLiteral(ctx) {
+	}
+
+
+	// Enter a parse tree produced by AxolangParser#arrayAccess.
+	enterArrayAccess(ctx) {
+	}
+
+	// Exit a parse tree produced by AxolangParser#arrayAccess.
+	exitArrayAccess(ctx) {
 	}
 
 

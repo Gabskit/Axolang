@@ -1,9 +1,3 @@
-import antlr4 from "antlr4";
-import AxolangLexer from "./AxolangLexer.js";
-import AxolangParser from "./AxolangParser.js";
-import AxolangListener from "./AxolangListener.js";
-
-const HEADER_C = `
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -363,7 +357,7 @@ typedef union {
   bool axo_boo;
   _BitInt(128) axo_int;
   unsigned _BitInt(128) axo_intu;
-  _Float128 axo_flt;
+  long double axo_flt;
   double complex axo_com;
   _Decimal128 axo_dec;
   void* axo_other;
@@ -375,83 +369,7 @@ typedef union {
   _BitInt(256) axo_int;
   unsigned _BitInt(256) axo_intu;
   _Float256 axo_flt;
-  _Float128 complex axo_com;
+  long double complex axo_com;
   _Decimal128 axo_dec;
   void* axo_other;
 } xlvar;
-`;
-class AxolangToCListener extends AxolangListener {
-	constructor() {
-		super();
-		this.outputC = "";
-		this.tablaSimbolos = new Map();
-	}
-	enterVarDeclaration(ctx) {
-		const id = ctx.IDENTIFIER().getText();
-		let type = ctx.getChild(0).getText();
-		if (ctx.arrayLiteral()) {
-			this.tablaSimbolos.set(id, "array");
-			const items = ctx.arrayLiteral().expression();
-			const elementsCount = items.length;
-			let chkmrk = ["", "DD", "U", ""];
-			let preout = "";
-			preout += `${type} ${id};
-            ${id} = {`;
-			if (type.startsWith("xxs")) {
-				chkmrk = ["", "", "", ""];
-			} else if (type.startsWith("xs")) {
-				chkmrk = ["f16", "", "u", ""];
-			} else if (type.startsWith("s")) {
-				chkmrk = ["f", "DF", "U", "f16i"];
-			} else if (type.startsWith("l")) {
-				chkmrk = ["f128", "DL", "U", "* I"];
-			} else if (type.startsWith("xl")) {
-				chkmrk = ["f256", "DL", "U", "f128i"];
-			} else {
-				chkmrk = ["", "DD", "U", "* I"];
-			}
-			for (let i = 0; i < elementsCount; i++) {
-				let value = items[i].getText();
-				if (value.includes(".")) {
-					if (value.includes("D")) {
-						value = value.replace(/D$/, chkmrk[1]);
-						preout += `{ .axo_dec = ${value} }`;
-					} else if (value.includes("i")) {
-						value = value.replace(/i$/, chkmrk[3]);
-						preout += `{ .axo_com = ${value} }`;
-					} else {
-						value = value.append(chkmrk[0]);
-						preout += `{ .axo_flt = ${value} }`;
-					}
-				} else if (value.startsWith("\'")) {
-					value = value.replace(/^/, chkmrk[2]);
-					preout += `{ .axo_chara = ${value} }`;
-				}
-				preout += `, `;
-			}
-			preout += "}";
-		}
-	}
-}
-
-function transpile(inputCode) {
-	const chars = new antlr4.InputStream(inputCode);
-	const lexer = new AxolangLexer(chars);
-	const tokens = new antlr4.CommonTokenStream(lexer);
-	const parser = new AxolangParser(tokens);
-	const tree = parser.program();
-
-	let listener = new AxolangToCListener();
-	antlr4.tree.ParseTreeWalker.DEFAULT.walk(listener, tree);
-	let funs = listener.hoistedFunctions ? listener.hoistedFunctions : "";
-	let finalCode = HEADER_C + "\n" + funs + "\nint main() {\n";
-	finalCode += listener.outputC;
-	finalCode += "    return 0;\n}";
-	console.log(finalCode);
-	return finalCode;
-}
-const test = `
-var hi = ⟨5, 6, 7.5⟩
-
-`;
-transpile(test);
