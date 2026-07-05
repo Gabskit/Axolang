@@ -392,15 +392,15 @@ class AxolangToCListener extends AxolangListener {
 	enterVarDeclaration(ctx) {
 		const id = ctx.IDENTIFIER().getText();
 		let type = ctx.getChild(0).getText();
+
 		if (ctx.arrayLiteral()) {
 			this.tablaSimbolos.set(id, "array");
 			const items = ctx.arrayLiteral().expression();
 			const elementsCount = ctx.INT_LITERAL()
-				? ctx.INT_LITERAL().getText
+				? ctx.INT_LITERAL().getText()
 				: items.length;
+
 			let chkmrk = ["", "DD", "U", ""];
-			let inititem = [];
-			let preout = "";
 			if (type.startsWith("xxs")) {
 				chkmrk = ["", "", "", ""];
 			} else if (type.startsWith("xs")) {
@@ -414,89 +414,102 @@ class AxolangToCListener extends AxolangListener {
 			} else {
 				chkmrk = ["", "DD", "U", "* I"];
 			}
-			for (let i = 0; i < elementsCount; i++) {
-				let value = items[i].getText();
-				if (value.includes(".")) {
-					value += chkmrk[0];
-					inititem.push(`{ .axo_flt = ${value} }`);
-				} else if (value.includes("D") && !value.startsWith("\'")) {
-					value = value.replace(/D$/, chkmrk[1]);
-					inititem.push(`{ .axo_dec = ${value} }`);
-				} else if (value.includes("i") && !value.startsWith("\'")) {
-					value = value.replace(/i$/, chkmrk[3]);
-					inititem.push(`{ .axo_com = ${value} }`);
-				} else if (value.startsWith("\'")) {
-					value = value.replace(/^/, chkmrk[2]);
-					inititem.push(`{ .axo_chara = ${value} }`);
-				} else if (
-					(value.includes("true") || value.includes("false")) &&
-					!value.startsWith("\'")
-				) {
-					inititem.push(`{ .axo_boo = ${value} }`);
-				} else if (value.startsWith("{")) {
+			const transformarExpresion = nodoExpression => {
+				let value = nodoExpression.getText().trim();
+
+				// CASO 1: Es un sub-array (Recursividad Real)
+				let lowerVal = value.toLowerCase();
+				if (nodoExpression.arrayLiteral()) {
+					const subCtx = nodoExpression.arrayLiteral();
+					const subExpressions = subCtx.expression();
+					let subInicializadores = [];
+
+					for (let a = 0; a < subExpressions.length; a++) {
+						// LLAMADA RECURSIVA: evaluamos cada celda del sub-array
+						subInicializadores.push(transformarExpresion(subExpressions[a]));
+					}
+
+					// Retorna el sub-array formateado como Compound Literal estático en C23
+					return `{ .axo_other = (${type}[${subExpressions.length}]){ ${subInicializadores.join(", ")} } }`;
+				} else if (nodoExpression.pkg()) {
 					let pkgvars = [];
 					pkgvars.push(`{ .axo_other = ( struct {`);
-					const pkgbody = items[i].pkg().varDeclaration();
+					const pkgbody = nodoExpression.pkg().varDeclaration();
 					for (let p = 0; p < pkgbody.length; p++) {
 						let pkgvalue = pkgbody[p].getText();
 						pkgvars.push(`${pkgvalue};`);
 					}
 					pkgvars.push(`}){} }`);
-					inititem.push(`${pkgvars.join(" ")}`);
-				} else if (items[i].arrayLiteral()) {
-					let subarrays = [];
-					const subitems = items[i].arrayLiteral().expression();
-					subarrays.push(`(var[${subitems.length}]){ `);
-					for (let a = 0; a < subitems.length; a++) {
-						let arrval = subitems[a].getText();
-						this.enterVarDeclaration(arrval);
-					}
+					return `${pkgvars.join(" ")}`;
+				} else if (value.includes(".")) {
+					value += chkmrk[0];
+					return `{ .axo_flt = ${value} }`;
+				} else if (value.endsWith("D")) {
+					value = value.replace(/D$/, chkmrk[1]);
+					return `{ .axo_dec = ${value} }`;
+				} else if (value.endsWith("i")) {
+					value = value.replace(/i$/, chkmrk[3]);
+					return `{ .axo_com = ${value} }`;
+				} else if (value.startsWith("'")) {
+					value = value.replace(/^/, chkmrk[2]);
+					return `{ .axo_chara = ${value} }`;
+				} else if (value.startsWith('"')) {
+					value = value.replace(/^/, chkmrk[2]);
+					return `{ .axo_other = ${value} }`;
+				} else if (
+					(lowerVal.includes("true") || lowerVal.includes("false")) &&
+					!value.startsWith("'")
+				) {
+					return `{ .axo_boo = ${value} }`;
 				} else if (value.startsWith("&")) {
-					inititem.push(`{ .axo_other = ${value} }`);
-				} else if (value.includes("u")) {
-					inititem.push(`{ .axo_intu = ${value} }`);
+					return `{ .axo_other = ${value} }`;
+				} else if (nodoExpression.IDENTIFIER()) {
+					return `{ .axo_other = ${value} }`;
+				} else if (value.endsWith("u")) {
+					value = value.replace(/u$/, "");
+					return `{ .axo_intu = ${value} }`;
 				} else {
-					inititem.push(`{ .axo_int = ${value} }`);
+					return `{ .axo_int = ${value} }`;
+				}
+			};
+			// ========================================================
+
+			// Evaluamos los elementos principales de la raíz del array
+			let inititem = [];
+			for (let i = 0; i < items.length; i++) {
+				inititem.push(transformarExpresion(items[i]));
+				if (i != items.length - 1) {
+					inititem.push(",");
 				}
 			}
+
+			// Agregamos el cierre del array y formateamos la salida de C
 			inititem.push(`};`);
-			this.outputC += `${type} ${id}[${elementsCount}] = { ${inititem.join(", ")}`;
+			this.outputC += `    ${type} ${id}[${elementsCount}] = { ${inititem.join(" ")}\n`;
 		} else {
+			let valvar = ctx.expression().getText();
+			this.outputC += ` ${type} ${id};`;
 			switch (type) {
 				case "xxsvar":
+					if (valvar.startsWith("'")) {
+						this.outputC += `\n ${id}.axo_char = ${valvar};`;
+					} else if (
+						(valvar.toLowerCase().includes("true") ||
+							valvar.toLowerCase().includes("false")) &&
+						!valvar.startsWith("'")
+					) {
+						this.outputC += `\n ${id}.axo_boo = ${valvar};`;
+					} else if (valvar.endsWith("u")){
+					  valvar = valvar.replace(/u$/, "")
+					  this.outputC += `\n ${id}.axo_intu = ${valvar};`
+					}
 					break;
-
 				default:
 				// code
 			}
 		}
 	}
-	enterAssignmentStatement(ctx) {
-		const id = ctx.IDENTIFIER().getText();
-		let value = ctx.expression().getText();
-		let nuevoTipo = "int"; // Por defecto
 
-		// Detectamos dinámicamente qué tipo de dato le están metiendo a la unión
-		if (value.includes(".")) {
-			if (value.includes("D")) {
-			}
-		}
-
-		// !!! EL SECRETO DEL DINAMISMO !!!
-		// Actualizamos la tabla de símbolos en tiempo de compilación
-		this.tablaSimbolos.set(id, nuevoTipo);
-
-		// Escribimos en C la asignación apuntando al nuevo campo de la unión pura
-		const campoC = this.obtenerCampoUnion(nuevoTipo);
-
-		// Tratamiento de booleanos y complejos nativos de Axolang
-		value = value
-			.replace(/★$/, "true")
-			.replace(/†$/, "false")
-			.replace(/[iI]$/, " * I");
-
-		this.outputC += `    ${id}.${campoC} = ${value};\n`;
-	}
 	exitMatchStatement(ctx) {
 		if (!this.isComplexMatch) {
 			this.outputC += `    }\n`;
@@ -521,11 +534,6 @@ function transpile(inputCode) {
 
 	return finalCode;
 }
-const test = `
-var hi[] = «5, 6 + 7i, 7.5, 5D, 'h', {
-  var hola
-  var algo
-}»
-
+const test = `xxsvar hi = true
 `;
 console.log(transpile(test));

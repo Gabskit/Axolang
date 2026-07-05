@@ -2,7 +2,7 @@ grammar Axolang;
 
 // Regla raíz del programa
 program
-: statement* EOF
+: ' '*? statement* EOF
 ;
 
 // Sentencias válidas en Axolang
@@ -13,9 +13,10 @@ statement
 
 // Declaración de variables (Tipos primitivos, Auto-inferencia y Sintaxis de Array Exacta)
 varDeclaration
-: type IDENTIFIER '=' expression
-| type IDENTIFIER '[' INT_LITERAL? ']' '=' arrayLiteral
-| type IDENTIFIER
+: type ' ' IDENTIFIER '=' expression
+| type ' ' IDENTIFIER '[' INT_LITERAL? ']' '=' arrayLiteral
+| type ' ' IDENTIFIER
+| type ' ' IDENTIFIER '[' INT_LITERAL ']'
 ;
 
 type
@@ -40,7 +41,7 @@ declaration
 
 // Un paquete contiene declaraciones internas estructuradas
 pkg
-: '{' varDeclaration* '}'
+: ' '*? '{' varDeclaration* '}'
 ;
 
 // Expresiones jerárquicas de Axolang
@@ -51,6 +52,7 @@ expression
 | IDENTIFIER
 | COMPLEX_LITERAL
 | CHAR_LITERAL
+| STRING_LITERAL
 | DECIMAL_LITERAL
 | pkg
 | BOOLEAN
@@ -59,7 +61,7 @@ expression
 ;
 
 arrayLiteral
-: '«' expression (',' expression)* '»'
+: '«' ' '? expression (',' ' '? expression)* '»'
 ;
 
 arrayAccess
@@ -68,14 +70,15 @@ arrayAccess
 
 // --- TOKENS LÉXICOS ---
 IDENTIFIER : [\u{1F4A9}\u{1F926}\p{Alpha}\p{General_Category=Other_Letter}][\u{1F4A9}\u{1F926}\p{Alnum}\p{General_Category=Other_Letter}]* ;
-CHAR_LITERAL : '\'' [\u{1F4A9}\u{1F926}\p{Alnum}\p{General_Category=Other_Letter}] '\'';
-INT_LITERAL : [+-]? [ \t]* [0-9]+ ;
-UINT_LITERAL : [0-9]+ [ \t]* 'u';
-FLOAT_LITERAL : [+-]? [ \t]* [0-9]+ ('.' [0-9]+)?;
-DECIMAL_LITERAL : [+-]? [ \t]* [0-9]+ ('.' [0-9]+)? [dD];
-COMPLEX_LITERAL : [+-]? [ \t]* [0-9]+ ('.' [0-9]+)? [ \t]* [+-] [ \t]* [0-9]+ ('.' [0-9]+)? [ \t]* 'i'
-| [+-]? [ \t]* [0-9]+ ('.' [0-9]+)? [ \t]* 'i';
-BOOLEAN : 'true' | 'false';
+CHAR_LITERAL : [ \t]*? '\'' [\u{1F4A9}\u{1F926}\p{Alnum}\p{General_Category=Other_Letter}] '\'';
+STRING_LITERAL : [ \t]*? '"' [ \t\n\u{1F4A9}\u{1F926}\p{Alnum}\p{General_Category=Other_Letter}]* '"';
+INT_LITERAL : [ \t]*? [+-]? [ \t]*? [0-9]+ ;
+UINT_LITERAL : [ \t]*? [0-9]+ 'u';
+FLOAT_LITERAL : [ \t]*? [+-]? [ \t]*? [0-9]+ ('.' [0-9]+)?;
+DECIMAL_LITERAL : [ \t]*? [+-]? [ \t]*? [0-9]+ ('.' [0-9]+)? [dD];
+COMPLEX_LITERAL : [ \t]*? [+-]? [ \t]*? [0-9]+ ('.' [0-9]+)? [ \t]*? [+-] [ \t]*? [0-9]+ ('.' [0-9]+)? [ \t]*? 'i'
+| [ \t]*? [+-]? [ \t]*? [0-9]+ ('.' [0-9]+)? [ \t]*? 'i';
+BOOLEAN : [ \t]*? 'true' | [ \t]*? 'false';
 WS : [ \t\r\n]+ -> skip ;
 
 OTHER : .+? ;
