@@ -435,14 +435,22 @@ class AxolangToCListener extends AxolangListener {
 					inititem.push(`{ .axo_boo = ${value} }`);
 				} else if (value.startsWith("{")) {
 					let pkgvars = [];
-					pkgvars.push(`{ .axo_other = (struct {`);
-					const pkgbody = items[i].varDeclaration();
+					pkgvars.push(`{ .axo_other = ( struct {`);
+					const pkgbody = items[i].pkg().varDeclaration();
 					for (let p = 0; p < pkgbody.length; p++) {
 						let pkgvalue = pkgbody[p].getText();
 						pkgvars.push(`${pkgvalue};`);
 					}
 					pkgvars.push(`}){} }`);
 					inititem.push(`${pkgvars.join(" ")}`);
+				} else if (items[i].arrayLiteral()) {
+					let subarrays = [];
+					const subitems = items[i].arrayLiteral().expression();
+					subarrays.push(`(var[${subitems.length}]){ `);
+					for (let a = 0; a < subitems.length; a++) {
+						let arrval = subitems[a].getText();
+						this.enterVarDeclaration(arrval);
+					}
 				} else if (value.startsWith("&")) {
 					inititem.push(`{ .axo_other = ${value} }`);
 				} else if (value.includes("u")) {
