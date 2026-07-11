@@ -90,7 +90,7 @@ class AxolangToCListener extends AxolangListener {
     if (type.startsWith("xs")) {
       chkmrk = ["f16", "u", ""];
     } else if (type.startsWith("s")) {
-      chkmrk = ["DF", "U", "f16i"];
+      chkmrk = ["DF", "U", "* I"];
     } else if (type.startsWith("l")) {
       chkmrk = ["DL", "U", "* I"];
     } else {
@@ -109,6 +109,7 @@ class AxolangToCListener extends AxolangListener {
           vars.push(`{ .axo_intu = ${thisval} }`);
         } else if (thisval.endsWith("i")) {
           thisval = thisval.replace(/i$/, chkmrk[2]);
+
           vars.push(`{ .axo_com = ${thisval} }`);
         } else if (thisval.includes(".")) {
           thisval += chkmrk[0];
@@ -127,21 +128,14 @@ class AxolangToCListener extends AxolangListener {
           vars.push(`{ .axo_other = ${thisval} }`);
         } else if (values[a].IDENTIFIER()) {
           vars.push(`{ .axo_other = ${thisval} }`);
-        } /*else if (values[a].pkg()) {
-          let varpkg = values[a].pkg().varDeclaration();
-          let invars = [];
-          for (let p = o; p < varpkg.length; p++) {
-            this.enterVarDeclaration(varpkg);
-          }
-          vars.push(`{ .axo_other = ${thisval} }`);
-        } else if (values[a].arrayLiteral()) {
+        } /*else if (values[a].arrayLiteral()) {
           this.enterVarDeclaration(values[a].arrayLiteral());
           vars.push(`{ .axo_other = ${thisval} }`);
         }*/ else {
           vars.push(`{ .axo_int = ${thisval} }`);
         }
       }
-      this.outputC += `\n${type} ${id}[${numval}] = { ${vars.join(",")} }`;
+      this.outputC += `\n${type} ${id}[${numval}] = { ${vars.join(",")} };`;
     } else {
       this.outputC += `\n${type} ${id};`;
       let thisvar = ctx.expression();
@@ -151,6 +145,7 @@ class AxolangToCListener extends AxolangListener {
         this.outputC += `\n${id}.axo_intu = ${value};`;
       } else if (value.endsWith("i")) {
         value = value.replace(/i$/, chkmrk[2]);
+
         this.outputC += `\n${id}.axo_com = ${value};`;
       } else if (value.includes(".")) {
         value += chkmrk[0];
@@ -191,16 +186,18 @@ function transpile(inputCode) {
   const listener = new AxolangToCListener();
   antlr4.tree.ParseTreeWalker.DEFAULT.walk(listener, tree);
 
-  let finalCode = HEADER_C + "\nint main() {\n";
+  let finalCode = HEADER_C;
   finalCode += listener.outputC;
-  finalCode += "    return 0;\n}";
   return finalCode;
 }
 const test = `
-var hi[] = «5, 6u, 5.5»
+var hi[] = «5, 6u, 5.5-6i»
 var go = "Hola"
 var text = go
-var hi = 7 - 8i
+lvar hi2 = 7 - 8i
 xsvar oh = 8.7
+fun hola = (){
+lvar = 8.7
+}
 `;
 console.log(transpile(test));

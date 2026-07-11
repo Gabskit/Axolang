@@ -19,7 +19,7 @@ varDeclaration
 | type IDENTIFIER '[' INT_LITERAL ']'
 ;
 type
-: 'xxsvar' | 'xsvar' | 'svar' | 'var' | 'lvar' | 'xlvar' | 'xxlvar' | 'fun'
+: 'xxsvar' | 'xsvar' | 'svar' | 'var' | 'lvar' | 'xlvar' | 'xxlvar' | 'fun' | 'pkg'
 ;
 
 matchStatement
@@ -28,7 +28,7 @@ matchStatement
 
 matchCase
 :  expression '->' declaration ';'
-|  expression '->' '{'  OTHER '}'
+|  expression '->' '{' OTHER '}'
 | '_' '->' declaration ';'
 ;
 
