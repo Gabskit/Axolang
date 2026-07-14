@@ -7,11 +7,18 @@ Axolang es un nuevo lenguaje de tipado dinamico, multiparadigma, transpilado a c
 ```
 var foo = 6 //entero
 var foo = 7u //entero sin signo
-var foo = 8.9 //decimal
-var foo = 5+6 i //complejo
+var foo = 8.9 //flotante
+var foo = 6.7D //Decimal
+var foo = 5+6.7 i //complejo flotante 
+var foo = 9-4.4 Di //complejo decimal 
 var foo = true //booleano
 var foo = 'C' //caracter
 var foo = "Texto"
+var foo = "Abc" il //texto embebido 
+var foo = [4, 6] //vector bidimensional
+var foo = 〔6, 8, 4, 8〕//vector 4d
+var foo = 97.8:765 //nanotiempo
+var goo = &foo~2 //slice
 var goo = &foo //puntero
 var foo = «4, 5.08, "Arreglos", «6, 7»»
 
@@ -26,13 +33,15 @@ var goo = "Esto es una función"
 ## Tamaños de variable
 
 ```
+xxsvar //1 byte 8 bits
 xsvar //2 bytes 16 bits
 svar //4 bytes 32 bits
 var //8 bytes 64 bits
 lvar //16 bytes 128 bits
+xlvar //32 bytes 256 bits
 ```
-
-- xsvar acepta entero con signo y sin signo, caracteres, booleano y decimales
+- xxsvar acepta entero con signo y sin signo, caracteres y booleano
+- xsvar acepta entero con signo y sin signo, caracteres, booleano, texto embebido y flotante
 - svar acepta entero con signo y sin signo, caracteres, booleano, complejos y decimales
 - var y lvar aceptaa todos los tipos
 
