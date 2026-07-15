@@ -152,26 +152,56 @@ class PaxoToCListener extends PaxoListener {
         return;}
       cp = cp.parentCtx;}
 
-    let chkmrk = ["DD", "U", "* I"];
-    if (type.startsWith("xs")) {
-      chkmrk = ["f16", "u", ""];
-    } else if (type.startsWith("s")) {
-      chkmrk = ["DF", "U", "* I"];
-    } else if (type.startsWith("l")) {
-      chkmrk = ["DL", "U", "* I"];
-    } else {
-      chkmrk = ["DD", "U", "* I"];}
-
+    let setposfix = {
+      xxsvar: {
+        paxo_int: "wb8",
+        paxo_intu: "uwb8",
+        paxo_chara: ""},
+      xsvar: {
+        paxo_int: "wb16",
+        paxo_intu: "uwb16",
+        paxo_flt: "f16",
+        paxo_chara: "u",
+        paxo_boo: ""},
+      svar: {
+        paxo_int: "wb32",
+        paxo_intu: "uwb32",
+        paxo_flt: "f32",
+        paxo_dec: "DF",
+        paxo_com: "* I",
+        paxo_chara: "U",
+        paxo_boo: ""},
+      var: {
+        paxo_int: "wb64",
+        paxo_intu: "uwb64",
+        paxo_flt: "f64",
+        paxo_dec: "DD",
+        paxo_com: "* I",
+        paxo_chara: "",
+        paxo_boo: ""},
+      lvar: {
+        paxo_int: "wb",
+        paxo_intu: "uwb",
+        paxo_flt: "f128",
+        paxo_dec: "DL",
+        paxo_com: "* I"},
+      xlvar: {
+        paxo_int: "wb",
+        paxo_intu: "uwb",
+        paxo_flt: "f256",
+        paxo_dec: "DL",
+        paxo_com: "* I"}};
+    
     if (type == "pkg"){
-  let pkgvars = ctx.expression().pkg().varDeclaration()
-  let pvdec = []
-  for(let p = 0; p < pkgvars.length;p++){
-    let pvid = pkgvars[p].IDENTIFIER().getText()
-    let pvtp = pkgvars[p].getChild(0).getText()
-    pvdec.push(`${pvtp} ${pvid};`)
-  }
+      let pkgvars = ctx.expression().pkg().varDeclaration()
+      let pvdec = []
+      for(let p = 0; p < pkgvars.length;p++){
+        let pvid = pkgvars[p].IDENTIFIER().getText()
+        let pvtp = pkgvars[p].getChild(0).getText()
+        pvdec.push(`${pvtp} ${pvid};`)}
       this.varAndFun += `\ntypedef struct{\n ${pvdec.join("\n")}}${id};`}
-      else if (ctx.arrayLiteral()) {
+
+    else if (ctx.arrayLiteral()) {
       const values = ctx.arrayLiteral().expression();
       const numval = values.length;
       let vars = [];
