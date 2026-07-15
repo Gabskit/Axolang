@@ -73,12 +73,18 @@ program
                                                                                                                                                                     ;
 
                                                                                                                                                                     parameterList
-                                                                                                                                                                        : IDENTIFIER (',' IDENTIFIER)*
+                                                                                                                                                                        : type IDENTIFIER (',' type IDENTIFIER)*
                                                                                                                                                                             ;
+
+argumentList
+    : expression (',' expression)*
+        ;
 
                                                                                                                                                                             // Expresiones jerárquicas e inferencia de tipos dinámicos
                                                                                                                                                                             expression
-                                                                                                                                                                                : INT_LITERAL
+                                                                                                                                                                                : expression ('<'|'>'|'≤'|'≥'|'=='|'≠') expression
+                                                                                                                                                                                | IDENTIFIER '(' argumentList? ')'
+                                                                                                                                                                                | INT_LITERAL
                                                                                                                                                                                     | UINT_LITERAL
                                                                                                                                                                                         | FLOAT_LITERAL
                                                                                                                                                                                             | DECIMAL_LITERAL
@@ -128,9 +134,7 @@ program
 
                                                                                                                                                                                                                                                                                                                                                         // Vectores (Se corrigieron los nombres y se permite flexibilidad de espacios en la coma)
                                                                                                                                                                                                                                                                                                                                                         VECTOR2D : '[' [ \t]* [+-]? [0-9]+ ('.' [0-9]+)? [ \t]* ',' [ \t]* [+-]? [0-9]+ ('.' [0-9]+)? [ \t]* ']' ;
-                                                                                                                                                                                                                                                                                                                                                        VECTOR4D : '〔' [ \t]* expression_list [ \t]* '〕' ;
-
-                                                                                                                                                                                                                                                                                                                                                        fragment expression_list : [+-]? [0-9]+ ('.' [0-9]+)? ([ \t]* ',' [ \t]* [+-]? [0-9]+ ('.' [0-9]+)?)* ;
+                                                                                                                                                                                                                                                                                                                                                        VECTOR4D : '〔' [ \t]* [+-]? [0-9]+ ('.' [0-9]+)? ([ \t]* ',' [ \t]* [+-]? [0-9]+ ('.' [0-9]+)?)* [ \t]* '〕' ;
 
                                                                                                                                                                                                                                                                                                                                                         // Estructuras de tiempo y memoria avanzadas de Paxo
                                                                                                                                                                                                                                                                                                                                                         NANOTIME_LITERAL : [0-9]+ ('.' [0-9]+)? ':' [0-9]+ ;
@@ -147,5 +151,7 @@ program
                                                                                                                                                                                                                                                                                                                                                         // Identificadores (Se corrigió de '*' a '+' para evitar tokens vacíos)
                                                                                                                                                                                                                                                                                                                                                         IDENTIFIER : [a-zA-Z_\u{1F4A9}\u{1F926}\p{L}][a-zA-Z0-9_\u{1F4A9}\u{1F926}\p{L}\p{N}]* ;
 
+LINE_COMMENT  : '//' ~[\r\n]* -> skip ;
+BLOCK_COMMENT : '/*' .*? '*/' -> skip ;
                                                                                                                                                                                                                                                                                                                                                         // Ignorar espacios en blanco globales
                                                                                                                                                                                                                                                                                                                                                         WS : [ \t\r\n]+ -> skip ;

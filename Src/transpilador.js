@@ -1,7 +1,29 @@
+import fs from 'fs'
 import antlr4 from "antlr4";
-import AxolangLexer from "./AxolangLexer.js";
-import AxolangParser from "./AxolangParser.js";
-import AxolangListener from "./AxolangListener.js";
+import PaxoLexer from "./PaxoLexer.js";
+import PaxoParser from "./PaxoParser.js";
+import PaxoListener from "./PaxoListener.js";
+
+const input = fs.readFileSync('./../Test/ejemplo.paxo', 'utf-8');
+
+const chars = new antlr4.InputStream(input);
+const lexer = new PaxoLexer(chars);
+const tokens = new antlr4.CommonTokenStream(lexer);
+
+const parser = new PaxoParser(tokens);
+
+parser.removeErrorListeners();
+parser.addErrorListener({
+  syntaxError: (recognizer, offendingSymbol, line, column, msg, e) => {
+    console.error(`❌ Error sintáctico en Paxo (Línea ${line}:${column}): ${msg}`);}});
+
+console.log("⏳ Analizando archivo fuente de Paxo...");
+const tree = parser.program();
+
+if (parser.syntaxErrorsCount === 0) {
+  console.log("   Análisis exitoso. ¡La sintaxis de Paxo es completamente válida!");
+} else {
+  console.log(`   Se encontraron ${parser.syntaxErrorsCount} errores en el código.`);}
 
 const HEADER_C = `
 #include <stdint.h>
@@ -109,7 +131,7 @@ typedef union {
   void* paxo_other;
 } xlvar;
 `;
-class AxolangToCListener extends AxolangListener {
+class PaxoToCListener extends PaxoListener {
   constructor() {
     super();
     this.varAndFun = "";
@@ -216,12 +238,12 @@ class AxolangToCListener extends AxolangListener {
 
 function transpile(inputCode) {
   const chars = new antlr4.InputStream(inputCode);
-  const lexer = new AxolangLexer(chars);
+  const lexer = new PaxoLexer(chars);
   const tokens = new antlr4.CommonTokenStream(lexer);
-  const parser = new AxolangParser(tokens);
+  const parser = new PaxoParser(tokens);
   const tree = parser.program();
   //console.log(tree);
-  const listener = new AxolangToCListener();
+  const listener = new PaxoToCListener();
   antlr4.tree.ParseTreeWalker.DEFAULT.walk(listener, tree);
   let finalCode = HEADER_C;
   finalCode += listener.varAndFun;
@@ -236,9 +258,6 @@ var go = "Hola"
 var text = go
 lvar hi2 = 7 - 8i
 xsvar oh = 'i'
-pkg hola = {
-  var numero
-  xsvar id}
 `;
-
-console.log(transpile(test));
+/*
+console.log(transpile(test));*/

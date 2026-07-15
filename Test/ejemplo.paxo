@@ -1,0 +1,7 @@
+// ejemplo
+var entero = false
+var i = 0
+fun main = () {
+  entero = 9
+  loop (i > 50): stop {
+    entero++}}
