@@ -1,6 +1,6 @@
-# Axolang
+# Paxo
 
-Axolang es un nuevo lenguaje de tipado dinamico, multiparadigma, transpilado a c23, este lenguaje esta pensado en el ahorro de memoria por lo que se puede usar varibles de diferentes tamaños
+Paxo es un nuevo lenguaje de tipado dinamico, multiparadigma, transpilado a c23, este lenguaje esta pensado en el ahorro de memoria por lo que se puede usar varibles de diferentes tamaños
 
 ## Tipos
 
@@ -116,7 +116,7 @@ try {
 ## Ejemplo
 
 ```
-add <Basic.axo>
+add <Basic.paxo>
 var entero = false
 var i = 0
 fun main = (){
