@@ -68,15 +68,20 @@ arrayAccess
 ;
 
 // --- TOKENS LÉXICOS LIMPIOS (Sin capturar espacios previos) ---
-IDENTIFIER : [a-zA-Z_\u{1F4A9}\u{1F926}\p{L}\p{General_Category=Other_Letter}] [a-zA-Z0-9_\u{1F4A9}\u{1F926}\p{L}\p{General_Category=Other_Letter}]* ;
-CHAR_LITERAL : '\'' [\u{1F4A9}\u{1F926}\p{N}\p{General_Category=Other_Letter}] '\'';
-STRING_LITERAL : '"' [ \t\n\u{1F4A9}\u{1F926}\p{N}\p{General_Category=Other_Letter}]* '"';
+IDENTIFIER : [a-zA-Z0-9_\u{1F4A9}\u{1F926}\p{L}\p{N}\p{General_Category=Other_Letter}]* ;
+CHAR_LITERAL : '\'' [a-zA-Z0-9_ \t\n\u{1F4A9}\u{1F926}\p{L}\p{N}\p{General_Category=Other_Letter}] '\'';
+STRING_LITERAL : '"' [a-zA-Z0-9_ \t\n\u{1F4A9}\u{1F926}\p{L}\p{N}\p{General_Category=Other_Letter}]* '"';
+EMSTRING_LITERAL : '"' [a-zA-Z0-9_ \t\n\u{1F4A9}\u{1F926}\p{L}\p{N}\p{General_Category=Other_Letter}]* '"' 'il';
 INT_LITERAL : [+-]? [0-9]+ ;
 UINT_LITERAL : [0-9]+ 'u';
 FLOAT_LITERAL : [+-]? [0-9]+ ('.' [0-9]+)?;
 DECIMAL_LITERAL : [+-]? [0-9]+ ('.' [0-9]+)? [dD];
-COMPLEX_LITERAL : [+-]? [0-9]+ ('.' [0-9]+)? [ \t]*? [+-] [ \t]*? [0-9]+ ('.' [0-9]+)? [ \t]*? 'i'
-| [+-]? [0-9]+ ('.' [0-9]+)? [ \t]*? 'i';
+COMPLEX_LITERAL : [+-]? [0-9]+ ('.' [0-9]+)? [ \t]*? [+-] [ \t]*? [0-9]+ ('.' [0-9]+)? 'i'
+| [+-]? [0-9]+ ('.' [0-9]+)? 'i';
+DECCOM_LITERAL : [+-]? [0-9]+ ('.' [0-9]+)? [ \t]*? [+-] [ \t]*? [0-9]+ ('.' [0-9]+)? 'Di'
+| [+-]? [0-9]+ ('.' [0-9]+)? 'Di';
 BOOLEAN : 'true' | 'false';
+2DVECTOR : '[' [+-]? [0-9]+ ('.' [0-9]+)? [ \t]*? ',' [+-]? [0-9]+ ('.' [0-9]+)? ']' ;
+4DVECTOR : '〔' [+-]? []'〕'
 WS : [ \t\r\n]+ -> skip ;
 OTHER : .+? ;
