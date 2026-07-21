@@ -5,49 +5,48 @@ Paxo es un nuevo lenguaje de tipado dinamico, multiparadigma, transpilado a c23,
 ## Tipos
 
 ```
-var foo = 6 //entero
-var foo = 7u //entero sin signo
-var foo = 8.9 //flotante
-var foo = 6.7D //Decimal
-var foo = 5+6.7 i //complejo flotante 
-var foo = 9-4.4 Di //complejo decimal 
-var foo = true //booleano
-var foo = 'C' //caracter
-var foo = "Texto"
-var foo = "Abc" il //texto embebido 
-var foo = [4, 6] //vector bidimensional
-var foo = 〔6, 8, 4, 8〕//vector 4d
-var foo = 97.8:765 //nanotiempo
-var goo = &foo~2 //slice
-var goo = &foo //puntero
-var foo = «4, 5.08, "Arreglos", «6, 7»»
+📥 foo = 6 //entero
+📥 foo = 7u //entero sin signo
+📥 foo = 6.7 //Decimal
+📥 foo = 9-4.4 i //complejo decimal 
+📥 foo = ✓ //booleano
+📥 foo = 'C' //caracter
+📥 foo = "Texto"
+📥 foo = "Abc" il //texto embebido 
+📥 foo = [4, 6] //vector bidimensional
+📥 foo = [8, 6, 6] //vector 3d
+📥 foo = [6, 8, 4, 8]//vector 4d
+📥 foo = 97:765 //nanotiempo
+📥 goo = &foo~2 //slice
+📥 goo = &foo //puntero
+📥 foo = «4, 5.08, "Arreglos", «6, 7»»
 
-pkg foo = {
-  var goo = "Paquetes" //contiene variables y funciones
+📦 foo = {
+  📥 goo = "Paquetes" //contiene variables y funciones
 }
-elc foo = {
-  var inte
-  svar ou
+🗳️ foo = {
+  📥 inte
+  s📥 ou
 } //como union
-fun foo = (){
-var goo = "Esto es una función"
+📥 foo = (){
+📥 goo = "Esto es una función"
 }
 ```
 
 ## Tamaños de variable
 
 ```
-xxsvar //1 byte 8 bits
-xsvar //2 bytes 16 bits
-svar //4 bytes 32 bits
-var //8 bytes 64 bits
-lvar //16 bytes 128 bits
-xlvar //32 bytes 256 bits
+xxs📥 //1 byte 8 bits
+xs📥 //2 bytes 16 bits
+s📥 //4 bytes 32 bits
+📥 //8 bytes 64 bits
+l📥 //16 bytes 128 bits
+xl📥 //32 bytes 256 bits
 ```
 ## Funciones
 
 ```
-fun name = (){
+📥 name = (){
 //codigo
 }
 ```
@@ -55,9 +54,9 @@ fun name = (){
 Las funciones tambien pueden estar en paquetes para generar clases
 
 ```
-pkg hi = {
-  var i1 = 8
-  fun metodo = (){
+📦 hi = {
+  📥 i1 = 8
+  📥 metodo = (){
     //codigo
   }
 }
@@ -68,9 +67,9 @@ pkg hi = {
 Declaración if else
 
 ```
-if (variable){
+(variable){
   //caso
-} else {
+}→{
   //caso
 }
 ```
@@ -78,14 +77,14 @@ if (variable){
 Declaración match
 
 ```
-match (variable){
+(variable){
   1 -> {
     //caso 1
   }
   'a' -> {
     //caso a
   }
-  default -> {
+  _ -> {
     //caso por defecto
   }
 }
@@ -94,20 +93,20 @@ match (variable){
 ## Bucles
 
 ```
-loop (condicion): stop | go {
+(condicion): ⏸️ | ▶️ |:
   //codigo
-}
+:|
 ```
 
-- stop: ejecutara el código declarado hasta que la condición sea verdadera
-- go: ejecutara el código declarado mientras la condición sea verdadera
+- ⏸️: ejecutara el código declarado hasta que la condición sea verdadera
+- ▶️: ejecutara el código declarado mientras la condición sea verdadera
 
 ## Manejo de errores
 
 ```
-try {
+↻ {
   //codigo
-} catch (error){
+} 🪤 (error){
   //error
 }
 ```
@@ -126,21 +125,21 @@ try {
 ## Ejemplo
 
 ```
-add <Basic.paxo>
-var entero = false
-var i = 0
-fun main = (){
++📚 <Basic.paxo>
+📥 entero = false
+📥 i = 0
+📥 main = (){
   entero = 9
-  loop (i > 50): stop {
+  (i > 50): ⏸️ |:
     entero++
-  }
-  try {
-    if (entero ≠ 1000){
+  :|
+  ↻{
+    (entero ≠ 1000){
       i = "completado"
-    } else {
+    } →{
       i = "en progreso"
     }
-  } catch (axo.vartype) {
+  } 🪤 (axo.vartype) {
     print(i)
   }
 }

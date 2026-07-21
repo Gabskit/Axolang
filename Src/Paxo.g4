@@ -1,157 +1,152 @@
 grammar Paxo;
 
 // ==========================================
-// 1. REGLAS DEL PARSER (Sintaxis Estructural)
+// 1. REGLAS DEL PARSER (Sintaxis)
 // ==========================================
 
 program
     : statement* EOF
-        ;
+    ;
 
-        statement
-            : varDeclaration
-                | assignment
-                    | matchStatement
-                        | ifElseStatement
-                            | loopStatement
-                                | tryCatchStatement
-                                    | functionDeclaration
-                                        | pkgDeclaration
-                                            | expression ';' // Para llamadas a funciones directas
-                                                | 'add' '<' IDENTIFIER ('.' IDENTIFIER)? '>' // Inclusión de paquetes como <Basic.paxo>
-                                                    ;
+statement
+    : varDeclaration
+    | assignment
+    | matchStatement
+    | ifElseStatement
+    | loopStatement
+    | tryCatchStatement
+    | functionDeclaration
+    | pkgDeclaration
+    | expression ';'
+    | INCLUDE '<' IDENTIFIER ('.' IDENTIFIER)? '>'
+    ;
 
-                                                    // Declaración de variables soportando inferencia (var) y tamaños explícitos
-                                                    varDeclaration
-                                                        : type IDENTIFIER '=' expression
-                                                            | type IDENTIFIER '[' INT_LITERAL? ']' '=' arrayLiteral
-                                                                | type IDENTIFIER
-                                                                    | type IDENTIFIER '[' INT_LITERAL ']'
-                                                                        ;
+varDeclaration
+    : sizePrefix? VAR_DECL IDENTIFIER '=' expression
+    | sizePrefix? VAR_DECL IDENTIFIER '[' INT_LITERAL? ']' '=' arrayLiteral
+    | sizePrefix? VAR_DECL IDENTIFIER
+    ;
 
-                                                                        type
-                                                                            : 'var' | 'xxsvar' | 'xsvar' | 'svar' | 'lvar' | 'xlvar'
-                                                                                ;
+sizePrefix
+    : 'xxs' | 'xs' | 's' | 'l' | 'xl'
+    ;
 
-                                                                                assignment
-                                                                                    : IDENTIFIER '=' expression
-                                                                                        | IDENTIFIER '++'
-                                                                                            | IDENTIFIER '--'
-                                                                                                ;
+assignment
+    : IDENTIFIER '=' expression
+    | IDENTIFIER '++'
+    | IDENTIFIER '--'
+    ;
 
-                                                                                                ifElseStatement
-                                                                                                    : 'if' '(' expression ')' block ('else' block)?
-                                                                                                        ;
+ifElseStatement
+    : '(' expression ')' block (ARROW block)?
+    ;
 
-                                                                                                        matchStatement
-                                                                                                            : 'match' '(' IDENTIFIER ')' '{' matchCase+ '}'
-                                                                                                                ;
+matchStatement
+    : '(' IDENTIFIER ')' '{' matchCase+ '}'
+    ;
 
-                                                                                                                matchCase
-                                                                                                                    : expression '->' block
-                                                                                                                        | 'default' '->' block
-                                                                                                                            ;
+matchCase
+    : expression '->' block
+    | '_' '->' block
+    ;
 
-                                                                                                                            loopStatement
-                                                                                                                                : 'loop' '(' expression ')' ':' ('stop' | 'go') block
-                                                                                                                                    ;
+loopStatement
+    : '(' expression ')' ':' loopMode loopDelimiter block loopEndDelimiter
+    ;
 
-                                                                                                                                    tryCatchStatement
-                                                                                                                                        : 'try' block 'catch' '(' IDENTIFIER ('.' IDENTIFIER)? ')' block
-                                                                                                                                            ;
+loopMode
+    : PAUSE_MODE // ⏸️ (Do-Until)
+    | PLAY_MODE  // ▶️ (While)
+    ;
 
-                                                                                                                                            functionDeclaration
-                                                                                                                                                : 'fun' IDENTIFIER '=' '(' parameterList? ')' block
-                                                                                                                                                    ;
+loopDelimiter    : '|:' | '𝄆' ;
+loopEndDelimiter : ':|' | '𝄇' ;
 
-                                                                                                                                                    pkgDeclaration
-                                                                                                                                                        : 'pkg' IDENTIFIER '=' '{' (varDeclaration | functionDeclaration)* '}'
-                                                                                                                                                            ;
+tryCatchStatement
+    : TRY block CATCH '(' IDENTIFIER ('.' IDENTIFIER)? ')' block
+    ;
 
-                                                                                                                                                            block
-                                                                                                                                                                : '{' statement* '}'
-                                                                                                                                                                    ;
+functionDeclaration
+    : VAR_DECL IDENTIFIER '=' '(' parameterList? ')' block
+    ;
 
-                                                                                                                                                                    parameterList
-                                                                                                                                                                        : type IDENTIFIER (',' type IDENTIFIER)*
-                                                                                                                                                                            ;
+pkgDeclaration
+    : PKG IDENTIFIER '=' '{' (varDeclaration | functionDeclaration)* '}'
+    ;
+
+block
+    : '{' statement* '}'
+    ;
+
+parameterList
+    : sizePrefix? VAR_DECL IDENTIFIER (',' sizePrefix? VAR_DECL IDENTIFIER)*
+    ;
 
 argumentList
     : expression (',' expression)*
-        ;
+    ;
 
-                                                                                                                                                                            // Expresiones jerárquicas e inferencia de tipos dinámicos
-                                                                                                                                                                            expression
-                                                                                                                                                                                : expression ('<'|'>'|'≤'|'≥'|'=='|'≠') expression
-                                                                                                                                                                                | IDENTIFIER '(' argumentList? ')'
-                                                                                                                                                                                | INT_LITERAL
-                                                                                                                                                                                    | UINT_LITERAL
-                                                                                                                                                                                        | FLOAT_LITERAL
-                                                                                                                                                                                            | DECIMAL_LITERAL
-                                                                                                                                                                                                | COMPLEX_FLT_LITERAL
-                                                                                                                                                                                                    | COMPLEX_DEC_LITERAL
-                                                                                                                                                                                                        | CHAR_LITERAL
-                                                                                                                                                                                                            | STRING_LITERAL
-                                                                                                                                                                                                                | EMSTRING_LITERAL
-                                                                                                                                                                                                                    | BOOLEAN
-                                                                                                                                                                                                                        | VECTOR2D
-                                                                                                                                                                                                                            | VECTOR4D
-                                                                                                                                                                                                                                | NANOTIME_LITERAL
-                                                                                                                                                                                                                                    | SLICE_LITERAL
-                                                                                                                                                                                                                                        | POINTER_LITERAL
-                                                                                                                                                                                                                                            | arrayLiteral
-                                                                                                                                                                                                                                                | arrayAccess
-                                                                                                                                                                                                                                                    | IDENTIFIER
-                                                                                                                                                                                                                                                        ;
+expression
+    : expression ('<'|'>'|'≤'|'≥'|'=='|'≠') expression
+    | IDENTIFIER '(' argumentList? ')'
+    | INT_LITERAL
+    | UINT_LITERAL
+    | DECIMAL_LITERAL
+    | COMPLEX_LITERAL
+    | CHAR_LITERAL
+    | STRING_LITERAL
+    | EMSTRING_LITERAL
+    | BOOLEAN
+    | VECTOR
+    | NANOTIME_LITERAL
+    | SLICE_LITERAL
+    | POINTER_LITERAL
+    | IPV4_LITERAL
+    | IPV6_LITERAL
+    | arrayLiteral
+    | arrayAccess
+    | IDENTIFIER
+    ;
 
-                                                                                                                                                                                                                                                        arrayLiteral
-                                                                                                                                                                                                                                                            : '«' expression (',' expression)* '»'
-                                                                                                                                                                                                                                                                ;
+arrayLiteral
+    : '«' expression (',' expression)* '»'
+    ;
 
-                                                                                                                                                                                                                                                                arrayAccess
-                                                                                                                                                                                                                                                                    : IDENTIFIER '[' expression ']'
-                                                                                                                                                                                                                                                                        ;
+arrayAccess
+    : IDENTIFIER '[' expression ']'
+    ;
 
+// ==========================================
+// 2. REGLAS DEL LEXER (Tokens con Aliases Móvil/ASCII)
+// ==========================================
 
-                                                                                                                                                                                                                                                                        // ==========================================
-                                                                                                                                                                                                                                                                        // 2. REGLAS DEL LEXER (Tokens Primitivos)
-                                                                                                                                                                                                                                                                        // ==========================================
+VAR_DECL   : '📥' | 'var' ;
+PKG        : '📦' | 'pkg' ;
+TRY        : '↻' | 'try' ;
+CATCH      : '🪤' | 'catch' ;
+ARROW      : '→' | 'else' ;
+INCLUDE    : '+📚' | 'add' ;
 
-                                                                                                                                                                                                                                                                        // Literales Numéricos y Matemáticos
-                                                                                                                                                                                                                                                                        INT_LITERAL     : [+-]? [0-9]+ ;
-                                                                                                                                                                                                                                                                        UINT_LITERAL    : [0-9]+ 'u' ;
-                                                                                                                                                                                                                                                                        FLOAT_LITERAL   : [+-]? [0-9]+ '.' [0-9]+ ;
-                                                                                                                                                                                                                                                                        DECIMAL_LITERAL : [+-]? [0-9]+ ('.' [0-9]+)? [dD] ;
+PAUSE_MODE : '⏸️' | 'stop' ;
+PLAY_MODE  : '▶️' | 'go' ;
 
-                                                                                                                                                                                                                                                                        // Complejos (Soporta espacios opcionales antes de la 'i' o 'Di')
-                                                                                                                                                                                                                                                                        COMPLEX_FLT_LITERAL : [+-]? [0-9]+ ('.' [0-9]+)? [+-] [0-9]+ ('.' [0-9]+)? [ \t]* 'i'
-                                                                                                                                                                                                                                                                                            | [+-]? [0-9]+ ('.' [0-9]+)? [ \t]* 'i'
-                                                                                                                                                                                                                                                                                                                ;
-
-                                                                                                                                                                                                                                                                                                                COMPLEX_DEC_LITERAL : [+-]? [0-9]+ ('.' [0-9]+)? [+-] [0-9]+ ('.' [0-9]+)? [ \t]* 'Di'
-                                                                                                                                                                                                                                                                                                                                    | [+-]? [0-9]+ ('.' [0-9]+)? [ \t]* 'Di'
-                                                                                                                                                                                                                                                                                                                                                        ;
-
-                                                                                                                                                                                                                                                                                                                                                        // Vectores (Se corrigieron los nombres y se permite flexibilidad de espacios en la coma)
-                                                                                                                                                                                                                                                                                                                                                        VECTOR2D : '[' [ \t]* [+-]? [0-9]+ ('.' [0-9]+)? [ \t]* ',' [ \t]* [+-]? [0-9]+ ('.' [0-9]+)? [ \t]* ']' ;
-                                                                                                                                                                                                                                                                                                                                                        VECTOR4D : '〔' [ \t]* [+-]? [0-9]+ ('.' [0-9]+)? ([ \t]* ',' [ \t]* [+-]? [0-9]+ ('.' [0-9]+)?)* [ \t]* '〕' ;
-
-                                                                                                                                                                                                                                                                                                                                                        // Estructuras de tiempo y memoria avanzadas de Paxo
-                                                                                                                                                                                                                                                                                                                                                        NANOTIME_LITERAL : [0-9]+ ('.' [0-9]+)? ':' [0-9]+ ;
-                                                                                                                                                                                                                                                                                                                                                        SLICE_LITERAL    : '&' [a-zA-Z_][a-zA-Z0-9_]* '~' [0-9]+ ;
-                                                                                                                                                                                                                                                                                                                                                        POINTER_LITERAL  : '&' [a-zA-Z_][a-zA-Z0-9_]* ;
-
-                                                                                                                                                                                                                                                                                                                                                        // Literales de Texto
-                                                                                                                                                                                                                                                                                                                                                        CHAR_LITERAL     : '\'' . '\'' ;
-                                                                                                                                                                                                                                                                                                                                                        STRING_LITERAL   : '"' (~["\r\n])* '"' ;
-                                                                                                                                                                                                                                                                                                                                                        EMSTRING_LITERAL : '"' (~["\r\n])* '"' [ \t]* 'il' ; // Texto embebido / Inline string
-
-                                                                                                                                                                                                                                                                                                                                                        BOOLEAN : 'true' | 'false' ;
-
-                                                                                                                                                                                                                                                                                                                                                        // Identificadores (Se corrigió de '*' a '+' para evitar tokens vacíos)
-                                                                                                                                                                                                                                                                                                                                                        IDENTIFIER : [a-zA-Z_\u{1F4A9}\u{1F926}\p{L}][a-zA-Z0-9_\u{1F4A9}\u{1F926}\p{L}\p{N}]* ;
-
-LINE_COMMENT  : '//' ~[\r\n]* -> skip ;
-BLOCK_COMMENT : '/*' .*? '*/' -> skip ;
-                                                                                                                                                                                                                                                                                                                                                        // Ignorar espacios en blanco globales
-                                                                                                                                                                                                                                                                                                                                                        WS : [ \t\r\n]+ -> skip ;
+// Literales
+INT_LITERAL     : [+-]? [0-9]+ ;
+UINT_LITERAL    : [0-9]+ 'u' ;
+DECIMAL_LITERAL : [+-]? [0-9]+ '.' [0-9]+ ;
+BOOLEAN         : '×' | '✓' ;
+COMPLEX_LITERAL : [+-]? [0-9]+ ('.' [0-9]+)? [+-] [0-9]+ ('.' [0-9]+)? 'i'
+| [+-]? [0-9]+ ('.' [0-9]+) 'i' ;
+IDENTIFIER      : [a-zA-Z_\p{L}\p{Emoji}][a-zA-Z0-9_\p{L}\p{Emoji}]* ;
+STRING_LITERAL  : '"' (~["\r\n])* '"' ;
+CHAR_LITERAL    : '\'' . '\'' ;
+EMSTRING_LITERAL: '"' (~["\r\n])* '"' 'il' ;
+VECTOR          : '[' [+-]? [0-9]+ ('.' [0-9]+) (',' [+-]? [0-9]+ ('.' [0-9]+)?)* ']' ;
+NANOTIME_LITERAL: [0-9]+ ':' [0-9]+ ;
+SLICE_LITERAL   : '&' [a-zA-Z_\p{L}\p{Emoji}][a-zA-Z0-9_\p{L}\p{Emoji}]* '~' [0-9]+ ;
+POINTER_LITERAL : '&' [a-zA-Z_\p{L}\p{Emoji}][a-zA-Z0-9_\p{L}\p{Emoji}]* ;
+IPV4_LITERAL    : [0-9]+ ('.' [0-9]+)* ;
+IPV6_LITERAL    : [0-F]+ (':' [0-F]+)* ;
+LINE_COMMENT    : '//' ~[\r\n]* -> skip ;
+BLOCK_COMMENT   : '/*' .*? '*/' -> skip ;
+WS              : [ \t\r\n]+ -> skip ;
