@@ -1,25 +1,23 @@
 # Paxo
 
-Paxo es un nuevo lenguaje de tipado dinamico, multiparadigma, transpilado a c23, este lenguaje esta pensado en el ahorro de memoria por lo que se puede usar varibles de diferentes tamaños
+Paxo es un nuevo lenguaje de tipado dinamico, multiparadigma, de vm, este lenguaje esta pensado en el ahorro de memoria por lo que se puede usar varibles de diferentes tamaños
 
 ## Tipos
 
 ```
 📥 foo = 6 //entero
-📥 foo = 7u //entero sin signo
 📥 foo = 6.7 //Decimal
 📥 foo = 9-4.4 i //complejo decimal 
-📥 foo = ✓ //booleano
+📥 foo = ✓ //booleano bit 
+📥 foo = • //trit
+📥 foo = ° //crit
 📥 foo = 'C' //caracter
 📥 foo = "Texto"
-📥 foo = "Abc" il //texto embebido 
 📥 foo = [4, 6] //vector bidimensional
-📥 foo = [8, 6, 6] //vector 3d
 📥 foo = [6, 8, 4, 8]//vector 4d
 📥 foo = 97:765 //nanotiempo
 📥 goo = &foo~2 //slice
-📥 goo = &foo //puntero
-📥 foo = 35.106.255.97 //ipv4
+📥 foo = 35.106.255.97\20 //ipv4
 📥 foo = 6a:aff:... //ipv6
 📥 foo = «4, 5.08, "Arreglos", «6, 7»»
 
@@ -120,8 +118,14 @@ Declaración match
 | or
 ! not
 .& and bit
+.&& and trit
+.&&& and crit
 .| or bit
+.|| or trit
+.||| or crit
 .! not bit
+.!! not trit
+.!!! not crit
 § xor
 
 ## Ejemplo
