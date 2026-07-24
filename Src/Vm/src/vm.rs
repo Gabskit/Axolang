@@ -13,22 +13,18 @@ impl PaxoVM {
 
     fn register_index(arg: PaxoValue) -> Option<usize> {
         match arg {
-            PaxoValue::Xxs(v) => Some(v as usize),
             PaxoValue::Xs(v) => Some(v as usize),
             PaxoValue::S(v) => Some(v as usize),
             PaxoValue::M(v) => Some(v as usize),
             PaxoValue::L(v) => Some(v as usize),
-            PaxoValue::Xl(v) => Some(v as usize),
             _ => None,}}
 
     fn add_numeric(a: PaxoValue, b: PaxoValue) -> Option<PaxoValue> {
         match (a, b) {
-            (PaxoValue::Xxs(v1), PaxoValue::Xxs(v2)) => Some(PaxoValue::Xxs(v1.wrapping_add(v2))),
             (PaxoValue::Xs(v1), PaxoValue::Xs(v2)) => Some(PaxoValue::Xs(v1.wrapping_add(v2))),
             (PaxoValue::S(v1), PaxoValue::S(v2)) => Some(PaxoValue::S(v1.wrapping_add(v2))),
             (PaxoValue::M(v1), PaxoValue::M(v2)) => Some(PaxoValue::M(v1.wrapping_add(v2))),
             (PaxoValue::L(v1), PaxoValue::L(v2)) => Some(PaxoValue::L(v1.wrapping_add(v2))),
-            (PaxoValue::Xl(v1), PaxoValue::Xl(v2)) => Some(PaxoValue::Xl(v1.wrapping_add(v2))),
             _ => None,}}
 
     /// Ejecuta una instrucción en la Cola FIFO

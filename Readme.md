@@ -8,17 +8,13 @@ Paxo es un nuevo lenguaje de tipado dinamico, multiparadigma, de vm, este lengua
 📥 foo = 6 //entero
 📥 foo = 6.7 //Decimal
 📥 foo = 9-4.4 i //complejo decimal 
-📥 foo = ✓ //booleano bit 
-📥 foo = • //trit
-📥 foo = ° //crit
+📥 foo = ✓ //booleano
 📥 foo = 'C' //caracter
 📥 foo = "Texto"
 📥 foo = [4, 6] //vector bidimensional
 📥 foo = [6, 8, 4, 8]//vector 4d
-📥 foo = 97:765 //nanotiempo
-📥 goo = &foo~2 //slice
-📥 foo = 35.106.255.97\20 //ipv4
-📥 foo = 6a:aff:... //ipv6
+📥 foo = 97:10:06:20.878.345 //tiempo
+📥 goo = &foo //puntero
 📥 foo = «4, 5.08, "Arreglos", «6, 7»»
 
 📦 foo = {
@@ -36,12 +32,10 @@ Paxo es un nuevo lenguaje de tipado dinamico, multiparadigma, de vm, este lengua
 ## Tamaños de variable
 
 ```
-xxs📥 //1 byte 8 bits
 xs📥 //2 bytes 16 bits
 s📥 //4 bytes 32 bits
 📥 //8 bytes 64 bits
 l📥 //16 bytes 128 bits
-xl📥 //32 bytes 256 bits
 ```
 ## Funciones
 
