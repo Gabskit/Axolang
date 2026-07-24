@@ -22,8 +22,7 @@ fn main() {
 
         for (i, &opcode) in bytes.iter().enumerate() {
             println!("  [Paso {:02}] Ejecutando Opcode: 0x{:02X}", i + 1, opcode);
-            vm.step(opcode, None);
-        }
+            vm.step(opcode, None);}
 
         println!("\n✅ Ejecución de Bytecode completada.");
     } else {
@@ -51,7 +50,4 @@ fn main() {
 
         if let PaxoValue::S(bits) = vec_packed {
             let (x, y, is_polar) = PaxoValue::unpack_vec2d_s(bits);
-            println!("   Vector desempaquetado -> X: {}, Y: {}, Polar: {}\n", x, y, is_polar);
-        }
-    }
-}
+            println!("   Vector desempaquetado -> X: {}, Y: {}, Polar: {}\n", x, y, is_polar);}}}
